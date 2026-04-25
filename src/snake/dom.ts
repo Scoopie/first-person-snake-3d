@@ -23,7 +23,6 @@ export function getGameDom(canvas: HTMLCanvasElement): GameDom {
     highScoreEl: requireElement("#highScore", HTMLSpanElement),
     floatingFoodInfo: requireElement("#floatingFoodInfo", HTMLDivElement),
     floatingFoodName: requireElement("#floatingFoodName", HTMLDivElement),
-    floatingFoodDescription: requireElement("#floatingFoodDescription", HTMLDivElement),
     message,
     startBtn: requireElement("#startBtn", HTMLButtonElement),
     messageTitle: requireElement("#message h1", HTMLHeadingElement),

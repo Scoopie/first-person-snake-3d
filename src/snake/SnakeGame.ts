@@ -1,11 +1,9 @@
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CELL_SIZE, FLOOR_Y, FOOD_TYPE_LIST, FOOD_TYPES, HALF_GRID } from "./config";
 import { getGameDom } from "./dom";
 import { InputController } from "./input";
 import { createScene } from "./scene";
-import type { BlastParticle, Cell, Direction, FoodType, GameDom, ObstacleSegment } from "./types";
+import type { Cell, Direction, FoodType, GameDom } from "./types";
 
 const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
 
@@ -34,11 +32,9 @@ export class SnakeGame {
   private stepTime = 0.28;
   private slowStepsRemaining = 0;
   private fastStepsRemaining = 0;
-  private wrapStepsRemaining = 0;
   private ghostStepsRemaining = 0;
   private doubleLengthStepsRemaining = 0;
   private doubleLengthSegments = 0;
-  private reverseControlsStepsRemaining = 0;
   private headGlowUntil = 0;
   private headGlowFlashStartsAt = 0;
   private pickupLabelUntil = 0;
@@ -46,11 +42,6 @@ export class SnakeGame {
   private pickupLabelColor = 0xffffff;
   private pickupLabelEmissive = 0xffffff;
   private meshes: THREE.Mesh[] = [];
-  private obstacles: Cell[] = [];
-  private obstacleMeshes: THREE.Mesh[] = [];
-  private obstacleSegments: ObstacleSegment[] = [];
-  private mazeWallPlan: ObstacleSegment[] = [];
-  private blastParticles: BlastParticle[] = [];
   private deathDebris: DeathDebris[] = [];
   private deathAnimationUntil = 0;
   private gameOverOverlayShown = false;
@@ -59,7 +50,7 @@ export class SnakeGame {
   private turnDirection = 0;
   private lastTime = performance.now();
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement) {
     this.dom = getGameDom(canvas);
     this.sceneBundle = createScene(canvas);
     this.highScore = this.loadHighScore();
@@ -107,37 +98,7 @@ export class SnakeGame {
   }
 
   private isOccupied(position: Cell) {
-    return this.snake.some((cell) => this.same(cell, position)) || this.obstacles.some((cell) => this.same(cell, position));
-  }
-
-  private cellsForWall(start: Cell, direction: Direction, length: number) {
-    return Array.from({ length }, (_, index) => ({
-      x: start.x + direction.x * index,
-      z: start.z + direction.z * index
-    }));
-  }
-
-  private cellsForCornerWall(start: Cell, direction: Direction, length: number, turn: Direction, turnLength: number) {
-    const cells = this.cellsForWall(start, direction, length);
-    const corner = cells[cells.length - 1];
-
-    for (let index = 1; index < turnLength; index++) {
-      cells.push({
-        x: corner.x + turn.x * index,
-        z: corner.z + turn.z * index
-      });
-    }
-
-    return cells;
-  }
-
-  private areCellsFree(cells: Cell[]) {
-    return cells.every((position) =>
-      Math.abs(position.x) < HALF_GRID - 1 &&
-      Math.abs(position.z) < HALF_GRID - 1 &&
-      !this.isOccupied(position) &&
-      (!this.foodPos || !this.same(position, this.foodPos))
-    );
+    return this.snake.some((cell) => this.same(cell, position));
   }
 
   private randomFreeCell(): Cell {
@@ -188,16 +149,11 @@ export class SnakeGame {
   }
 
   private applyFoodVisuals() {
-    const { food, foodBeacon, foodBeaconLight, foodLight, foodMat } = this.sceneBundle;
+    const { foodLight, foodMat } = this.sceneBundle;
 
     foodMat.color.setHex(this.activeFoodType.color);
     foodMat.emissive.setHex(this.activeFoodType.emissive);
     foodLight.color.setHex(this.activeFoodType.emissive);
-    foodBeaconLight.color.setHex(this.activeFoodType.emissive);
-    const beaconMaterial = foodBeacon.material;
-    if (beaconMaterial instanceof THREE.MeshBasicMaterial) {
-      beaconMaterial.color.setHex(this.activeFoodType.emissive);
-    }
   }
 
   private setDebugFoodType(index: number) {
@@ -210,11 +166,10 @@ export class SnakeGame {
   }
 
   private placeFood() {
-    const { food, foodBeacon, foodBeaconLight, foodLight } = this.sceneBundle;
+    const { food, foodLight } = this.sceneBundle;
 
     this.activeFoodType = this.pickFoodType();
     this.dom.floatingFoodName.textContent = "";
-    this.dom.floatingFoodDescription.textContent = "";
     this.dom.floatingFoodInfo.style.display = "none";
     this.applyFoodVisuals();
 
@@ -222,269 +177,6 @@ export class SnakeGame {
     food.position.copy(this.gridToWorld(this.foodPos));
     food.rotation.set(Math.random(), Math.random(), Math.random());
     foodLight.position.copy(food.position).add(new THREE.Vector3(0, 2.5, 0));
-    foodBeacon.position.copy(food.position).add(new THREE.Vector3(0, 3.2, 0));
-    foodBeaconLight.position.copy(foodBeacon.position).add(new THREE.Vector3(0, 1.3, 0));
-  }
-
-  private imminentSnakeCells() {
-    const cells: Cell[] = [];
-    const head = this.snake[0];
-
-    for (let i = 1; i <= 8; i++) {
-      cells.push({ x: head.x + this.dir.x * i, z: head.z + this.dir.z * i });
-      cells.push({ x: head.x + this.dir.x * i + this.dir.z, z: head.z + this.dir.z * i - this.dir.x });
-      cells.push({ x: head.x + this.dir.x * i - this.dir.z, z: head.z + this.dir.z * i + this.dir.x });
-    }
-
-    for (let x = -3; x <= 3; x++) {
-      for (let z = -3; z <= 3; z++) {
-        if (Math.abs(x) + Math.abs(z) <= 4) {
-          cells.push({ x: head.x + x, z: head.z + z });
-        }
-      }
-    }
-
-    return cells;
-  }
-
-  private isSafeObstaclePlacement(cells: Cell[]) {
-    const danger = this.imminentSnakeCells();
-    return cells.every((cell) => !danger.some((candidate) => this.same(candidate, cell)));
-  }
-
-  private buildMazeWallPlan(): ObstacleSegment[] {
-    const plan: ObstacleSegment[] = [];
-    const addCorner = (start: Cell, direction: Direction, length: number, turn: Direction, turnLength: number) => {
-      plan.push({
-        start,
-        direction,
-        length,
-        turn,
-        turnLength,
-        cells: this.cellsForCornerWall(start, direction, length, turn, turnLength)
-      });
-    };
-
-    addCorner({ x: -9, z: -8 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 4);
-    addCorner({ x: 5, z: -8 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 4);
-    addCorner({ x: -9, z: 8 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 4);
-    addCorner({ x: 5, z: 8 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 4);
-    addCorner({ x: -8, z: -5 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 4);
-    addCorner({ x: 8, z: -5 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 4);
-    addCorner({ x: -8, z: 2 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 4);
-    addCorner({ x: 8, z: 2 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 4);
-    addCorner({ x: -5, z: -5 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
-    addCorner({ x: 2, z: -5 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
-    addCorner({ x: -5, z: 5 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
-    addCorner({ x: 2, z: 5 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
-    addCorner({ x: -5, z: -2 }, { x: 0, z: 1 }, 5, { x: 1, z: 0 }, 3);
-    addCorner({ x: 5, z: -2 }, { x: 0, z: 1 }, 5, { x: -1, z: 0 }, 3);
-    addCorner({ x: -2, z: -9 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 3);
-    addCorner({ x: 2, z: -9 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 3);
-    addCorner({ x: -2, z: 6 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 3);
-    addCorner({ x: 2, z: 6 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 3);
-    addCorner({ x: -2, z: -2 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 3);
-    addCorner({ x: -2, z: 2 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 3);
-    addCorner({ x: -10, z: 0 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
-    addCorner({ x: 7, z: 0 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
-
-    return plan.sort(() => Math.random() - 0.5);
-  }
-
-  private renderObstacleWall(segment: ObstacleSegment) {
-    const { obstacleGroup, obstacleMats } = this.sceneBundle;
-
-    this.obstacles.push(...segment.cells);
-    this.obstacleSegments.push(segment);
-
-    const minX = Math.min(...segment.cells.map((cell) => cell.x));
-    const maxX = Math.max(...segment.cells.map((cell) => cell.x));
-    const minZ = Math.min(...segment.cells.map((cell) => cell.z));
-    const maxZ = Math.max(...segment.cells.map((cell) => cell.z));
-    const boundsCenter = this.gridToWorld({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 }).add(new THREE.Vector3(0, 0.35, 0));
-    const material = obstacleMats[THREE.MathUtils.randInt(0, obstacleMats.length - 1)];
-    const geometries: THREE.BufferGeometry[] = [];
-    const addLeg = (cells: Cell[]) => {
-      const horizontal = cells.length > 1 && cells[0].z === cells[cells.length - 1].z;
-      const sizeX = horizontal ? cells.length * CELL_SIZE - 0.28 : 1.65;
-      const sizeZ = horizontal ? 1.65 : cells.length * CELL_SIZE - 0.28;
-      const first = this.gridToWorld(cells[0]);
-      const last = this.gridToWorld(cells[cells.length - 1]);
-      const center = first.clone().add(last).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.35, 0));
-      const geometry = new RoundedBoxGeometry(sizeX, 2.2, sizeZ, 4, 0.34);
-      geometry.translate(center.x - boundsCenter.x, center.y - boundsCenter.y, center.z - boundsCenter.z);
-      geometries.push(geometry);
-    };
-
-    const firstLeg = this.cellsForWall(segment.start, segment.direction, segment.length);
-    addLeg(firstLeg);
-
-    if (segment.turn && segment.turnLength && segment.turnLength > 1) {
-      const corner = firstLeg[firstLeg.length - 1];
-      addLeg(this.cellsForWall(corner, segment.turn, segment.turnLength));
-    }
-
-    const geometry = mergeGeometries(geometries, false) ?? geometries[0];
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(boundsCenter);
-    mesh.userData.wallSize = {
-      x: (maxX - minX + 1) * CELL_SIZE,
-      y: 2.2,
-      z: (maxZ - minZ + 1) * CELL_SIZE
-    };
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-
-    obstacleGroup.add(mesh);
-    this.obstacleMeshes.push(mesh);
-  }
-
-  private addObstacle() {
-    for (let index = 0; index < this.mazeWallPlan.length; index++) {
-      const segment = this.mazeWallPlan[index];
-      if (!this.areCellsFree(segment.cells) || !this.isSafeObstaclePlacement(segment.cells)) {
-        continue;
-      }
-
-      this.mazeWallPlan.splice(index, 1);
-      this.renderObstacleWall(segment);
-      return;
-    }
-  }
-
-  private spawnWallExplosion(mesh: THREE.Mesh) {
-    const { blastParticleGeo, particleGroup } = this.sceneBundle;
-    const size = mesh.userData.wallSize as { x?: number; y?: number; z?: number } | undefined;
-    const params = mesh.geometry instanceof THREE.BoxGeometry ? mesh.geometry.parameters : undefined;
-    const halfX = (size?.x ?? params?.width ?? 1) / 2;
-    const halfY = (size?.y ?? params?.height ?? 1) / 2;
-    const halfZ = (size?.z ?? params?.depth ?? 1) / 2;
-
-    for (let i = 0; i < 22; i++) {
-      const meshMaterial = mesh.material;
-      const sourceMaterial = Array.isArray(meshMaterial) ? meshMaterial[0] : meshMaterial;
-      const color = sourceMaterial instanceof THREE.MeshStandardMaterial ? sourceMaterial.color.clone() : new THREE.Color(0xffffff);
-
-      const particleMaterial = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.9,
-        roughness: 0.4,
-        metalness: 0.1,
-        transparent: true,
-        opacity: 1
-      });
-
-      const particle = new THREE.Mesh(blastParticleGeo, particleMaterial) as BlastParticle;
-      particle.position.set(
-        mesh.position.x + THREE.MathUtils.randFloatSpread(halfX * 1.35),
-        mesh.position.y + THREE.MathUtils.randFloatSpread(halfY * 0.95),
-        mesh.position.z + THREE.MathUtils.randFloatSpread(halfZ * 1.35)
-      );
-      particle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-      particle.scale.setScalar(THREE.MathUtils.randFloat(0.7, 1.45));
-      particle.userData = {
-        velocity: new THREE.Vector3(
-          THREE.MathUtils.randFloatSpread(5.5),
-          THREE.MathUtils.randFloat(2.6, 6.8),
-          THREE.MathUtils.randFloatSpread(5.5)
-        ),
-        spin: new THREE.Vector3(
-          THREE.MathUtils.randFloatSpread(8),
-          THREE.MathUtils.randFloatSpread(8),
-          THREE.MathUtils.randFloatSpread(8)
-        ),
-        life: 0.75
-      };
-
-      particleGroup.add(particle);
-      this.blastParticles.push(particle);
-    }
-  }
-
-  private updateBlastParticles(dt: number) {
-    const { particleGroup } = this.sceneBundle;
-
-    for (let index = this.blastParticles.length - 1; index >= 0; index--) {
-      const particle = this.blastParticles[index];
-      particle.userData.life -= dt;
-
-      if (particle.userData.life <= 0) {
-        particleGroup.remove(particle);
-        particle.material.dispose();
-        this.blastParticles.splice(index, 1);
-        continue;
-      }
-
-      particle.userData.velocity.y -= 7.8 * dt;
-      particle.position.addScaledVector(particle.userData.velocity, dt);
-      particle.rotation.x += particle.userData.spin.x * dt;
-      particle.rotation.y += particle.userData.spin.y * dt;
-      particle.rotation.z += particle.userData.spin.z * dt;
-
-      const material = particle.material;
-      if (material instanceof THREE.MeshStandardMaterial) {
-        material.opacity = Math.max(0, particle.userData.life / 0.75);
-      }
-    }
-  }
-
-  private isSegmentInFrontOfSnake(segment: ObstacleSegment) {
-    const head = this.snake[0];
-    return segment.cells.some((cell) => {
-      const dx = cell.x - head.x;
-      const dz = cell.z - head.z;
-      return dx * this.dir.x + dz * this.dir.z > 0;
-    });
-  }
-
-  private removeObstacleAt(index: number, explode = false) {
-    const { obstacleGroup } = this.sceneBundle;
-    const mesh = this.obstacleMeshes[index];
-    const segment = this.obstacleSegments[index];
-
-    if (!mesh || !segment) {
-      return false;
-    }
-
-    if (explode) {
-      this.spawnWallExplosion(mesh);
-    }
-
-    obstacleGroup.remove(mesh);
-    mesh.geometry.dispose();
-    this.disposeMaterial(mesh.material);
-    this.mazeWallPlan.push(segment);
-    this.obstacleMeshes.splice(index, 1);
-    this.obstacleSegments.splice(index, 1);
-    return true;
-  }
-
-  private clearObstacles(count = Number.POSITIVE_INFINITY, explode = false, onlyInFront = false) {
-    let removed = 0;
-
-    for (let index = this.obstacleMeshes.length - 1; index >= 0 && removed < count; index--) {
-      const segment = this.obstacleSegments[index];
-      if (onlyInFront && !this.isSegmentInFrontOfSnake(segment)) {
-        continue;
-      }
-
-      if (this.removeObstacleAt(index, explode)) {
-        removed++;
-      }
-    }
-
-    this.obstacles = [];
-    for (const segment of this.obstacleSegments) {
-      this.obstacles.push(...segment.cells);
-    }
-  }
-
-  private wrapPosition(position: Cell): Cell {
-    return {
-      x: position.x > HALF_GRID ? -HALF_GRID : position.x < -HALF_GRID ? HALF_GRID : position.x,
-      z: position.z > HALF_GRID ? -HALF_GRID : position.z < -HALF_GRID ? HALF_GRID : position.z
-    };
   }
 
   private createRoundedBoxGeometry(width: number, height: number, depth: number, radius: number, segments: number) {
@@ -583,9 +275,6 @@ export class SnakeGame {
       this.setMeshOpacity(this.meshes[index], opacity);
     }
 
-    for (const obstacle of this.obstacleMeshes) {
-      this.setMeshOpacity(obstacle, opacity);
-    }
   }
 
   private setMeshOpacity(mesh: THREE.Mesh, opacity: number) {
@@ -604,9 +293,8 @@ export class SnakeGame {
   }
 
   private setDirectionFromKeys() {
-    const reversed = this.reverseControlsStepsRemaining > 0;
-    const leftTurn = reversed ? { x: -this.dir.z, z: this.dir.x } : { x: this.dir.z, z: -this.dir.x };
-    const rightTurn = reversed ? { x: this.dir.z, z: -this.dir.x } : { x: -this.dir.z, z: this.dir.x };
+    const leftTurn = { x: this.dir.z, z: -this.dir.x };
+    const rightTurn = { x: -this.dir.z, z: this.dir.x };
 
     if (this.input.has("arrowleft") || this.input.has("a")) {
       this.nextDir = leftTurn;
@@ -631,20 +319,6 @@ export class SnakeGame {
     this.turnDirection = Math.sign(cross);
     this.turnAnimationStartedAt = now;
     this.turnAnimationUntil = now + Math.min(300, Math.max(170, this.stepTime * 850));
-  }
-
-  private updateWrapRipple(now: number) {
-    const active = this.wrapStepsRemaining > 0;
-    const pulse = active ? 1 + Math.sin(now * 0.012) * 0.08 : 1;
-    const glow = active ? 0.45 + Math.sin(now * 0.012) * 0.22 : 0;
-
-    for (const wall of this.obstacleMeshes) {
-      wall.scale.y = pulse;
-      const material = wall.material;
-      if (material instanceof THREE.MeshStandardMaterial) {
-        material.emissiveIntensity = active ? 1.45 + glow : 1.0;
-      }
-    }
   }
 
   private activatePickupVisual(foodType: FoodType, durationMs = 3000) {
@@ -695,16 +369,10 @@ export class SnakeGame {
     const head = this.snake[0];
     let newHead: Cell = { x: head.x + this.dir.x, z: head.z + this.dir.z };
 
-    const wouldHitWall = Math.abs(newHead.x) > HALF_GRID || Math.abs(newHead.z) > HALF_GRID;
-    if (wouldHitWall && this.wrapStepsRemaining > 0) {
-      newHead = this.wrapPosition(newHead);
-    }
-
     const hitWall = Math.abs(newHead.x) > HALF_GRID || Math.abs(newHead.z) > HALF_GRID;
     const hitSelf = this.ghostStepsRemaining <= 0 && this.snake.some((part, index) => index > 0 && this.same(part, newHead));
-    const hitObstacle = this.ghostStepsRemaining <= 0 && this.wrapStepsRemaining <= 0 && this.obstacles.some((cell) => this.same(cell, newHead));
 
-    if (hitWall || hitSelf || hitObstacle) {
+    if (hitWall || hitSelf) {
       this.gameOver();
       return;
     }
@@ -717,12 +385,6 @@ export class SnakeGame {
 
       this.setScore(this.score + foodType.points);
 
-      const growBy = foodType.grow - 1;
-      for (let i = 0; i < growBy; i++) {
-        const tail = this.snake[this.snake.length - 1];
-        this.snake.push({ ...tail });
-      }
-
       if (foodType === FOOD_TYPES.slow) {
         this.slowStepsRemaining = 18;
         this.stepTime = Math.min(0.58, this.stepTime * 1.22);
@@ -734,10 +396,6 @@ export class SnakeGame {
       if (foodType === FOOD_TYPES.fast) {
         this.fastStepsRemaining = 18;
         glowDurationMs = this.fastStepsRemaining * (this.stepTime / 1.5) * 1000;
-      }
-      if (foodType === FOOD_TYPES.reverse) {
-        this.reverseControlsStepsRemaining = 18;
-        glowDurationMs = this.reverseControlsStepsRemaining * this.stepTime * 1000;
       }
       if (foodType === FOOD_TYPES.double) {
         this.applyTemporaryDoubleLength();
@@ -762,7 +420,6 @@ export class SnakeGame {
       }
     }
     if (this.fastStepsRemaining > 0) this.fastStepsRemaining--;
-    if (this.wrapStepsRemaining > 0) this.wrapStepsRemaining--;
     if (this.ghostStepsRemaining > 0) this.ghostStepsRemaining--;
     if (this.doubleLengthStepsRemaining > 0) {
       this.doubleLengthStepsRemaining--;
@@ -770,7 +427,6 @@ export class SnakeGame {
         this.removeTemporaryDoubleLength();
       }
     }
-    if (this.reverseControlsStepsRemaining > 0) this.reverseControlsStepsRemaining--;
     this.updateSnakeMeshes(0.55);
   }
 
@@ -913,7 +569,7 @@ export class SnakeGame {
   }
 
   private reset(startNow = false) {
-    const { camera, headGlow, headGlowLight, particleGroup } = this.sceneBundle;
+    const { camera, headGlow, headGlowLight } = this.sceneBundle;
 
     this.snake = [
       { x: 0, z: 0 },
@@ -929,18 +585,15 @@ export class SnakeGame {
     this.stepTime = 0.28;
     this.slowStepsRemaining = 0;
     this.fastStepsRemaining = 0;
-    this.wrapStepsRemaining = 0;
     this.ghostStepsRemaining = 0;
     this.doubleLengthStepsRemaining = 0;
     this.doubleLengthSegments = 0;
-    this.reverseControlsStepsRemaining = 0;
     this.headGlowUntil = 0;
     this.headGlowFlashStartsAt = 0;
     this.pickupLabelUntil = 0;
     this.pickupLabelWord = "";
     this.pickupLabelColor = 0xffffff;
     this.pickupLabelEmissive = 0xffffff;
-    this.obstacles = [];
     this.deathDebris = [];
     this.deathAnimationUntil = 0;
     this.gameOverOverlayShown = false;
@@ -955,17 +608,6 @@ export class SnakeGame {
     headGlow.visible = false;
     headGlowLight.intensity = 0;
     this.input.clear();
-
-    while (this.blastParticles.length) {
-      const particle = this.blastParticles.pop();
-      if (!particle) continue;
-      particleGroup.remove(particle);
-      particle.material.dispose();
-    }
-
-    this.clearObstacles();
-    this.obstacleSegments = [];
-    this.mazeWallPlan = this.buildMazeWallPlan();
     this.dom.messageTitle.textContent = "Snake 3D";
     this.dom.messageCopy.textContent = "";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
@@ -990,41 +632,16 @@ export class SnakeGame {
     console.assert(this.same({ x: 1, z: 2 }, { x: 1, z: 2 }), "same() should match equal cells");
     console.assert(!this.same({ x: 1, z: 2 }, { x: 2, z: 1 }), "same() should reject different cells");
 
-    const wallCells = this.cellsForWall({ x: 2, z: 3 }, { x: 1, z: 0 }, 3);
-    console.assert(wallCells.length === 3, "cellsForWall() should create requested length");
-    console.assert(this.same(wallCells[0], { x: 2, z: 3 }) && this.same(wallCells[2], { x: 4, z: 3 }), "cellsForWall() should follow direction");
-
-    console.assert(this.same(this.wrapPosition({ x: HALF_GRID + 1, z: 0 }), { x: -HALF_GRID, z: 0 }), "wrapPosition() should wrap east to west");
-    console.assert(this.same(this.wrapPosition({ x: 0, z: -HALF_GRID - 1 }), { x: 0, z: HALF_GRID }), "wrapPosition() should wrap north to south");
-
-    this.snake = [{ x: 0, z: 0 }];
-    this.dir = { x: 1, z: 0 };
-    console.assert(this.isSegmentInFrontOfSnake({ start: { x: 2, z: 0 }, direction: { x: 1, z: 0 }, length: 1, cells: [{ x: 2, z: 0 }] }), "isSegmentInFrontOfSnake() should detect a wall ahead");
-    console.assert(!this.isSegmentInFrontOfSnake({ start: { x: -2, z: 0 }, direction: { x: 1, z: 0 }, length: 1, cells: [{ x: -2, z: 0 }] }), "isSegmentInFrontOfSnake() should reject a wall behind");
-
     this.snake = [{ x: 0, z: 0 }, { x: 0, z: 1 }, { x: 0, z: 2 }, { x: 0, z: 3 }];
     this.applyTemporaryDoubleLength();
     this.applyTemporaryDoubleLength();
     console.assert(this.snake.length === 8 && this.doubleLengthSegments === 4, "Double should refresh instead of stacking exponentially");
     this.removeTemporaryDoubleLength();
-
-    const previousParticleCount = this.blastParticles.length;
-    this.updateBlastParticles(0);
-    console.assert(this.blastParticles.length === previousParticleCount, "updateBlastParticles(0) should be safe before gameplay");
     console.groupEnd();
   }
 
-  private disposeMaterial(material: THREE.Material | THREE.Material[]) {
-    if (Array.isArray(material)) {
-      material.forEach((entry) => entry.dispose());
-      return;
-    }
-
-    material.dispose();
-  }
-
   private readonly animate = (now: number) => {
-    const { camera, composer, food, foodBeacon, foodBeaconLight, foodLight } = this.sceneBundle;
+    const { camera, composer, food, foodLight } = this.sceneBundle;
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
@@ -1032,16 +649,10 @@ export class SnakeGame {
     food.rotation.y += dt * 2.3;
     food.position.y = FLOOR_Y + Math.sin(now * 0.005) * 0.18;
     foodLight.position.copy(food.position).add(new THREE.Vector3(0, 2.5, 0));
-    foodBeacon.position.set(food.position.x, FLOOR_Y + 3.35 + Math.sin(now * 0.004) * 0.22, food.position.z);
-    foodBeacon.rotation.y += dt * 2.1;
-    foodBeacon.scale.setScalar(1 + Math.sin(now * 0.006) * 0.12);
-    foodBeaconLight.position.copy(foodBeacon.position).add(new THREE.Vector3(0, 1.3, 0));
-    this.updateBlastParticles(dt);
 
     if (this.running && !this.dead) {
       this.setDirectionFromKeys();
       this.moveTimer += dt;
-      this.updateWrapRipple(now);
 
       const speed = this.fastStepsRemaining > 0 ? this.stepTime / 1.5 : this.stepTime;
       while (this.moveTimer >= speed) {
@@ -1054,7 +665,6 @@ export class SnakeGame {
       this.updateCamera(dt);
       this.updateFloatingFoodInfo();
     } else if (this.snake.length > 0) {
-      this.updateWrapRipple(now);
       this.updateGhostCollisionVisuals(now);
       this.updateDeathAnimation(dt, now);
       if (!this.dead || now >= this.deathAnimationUntil) {
