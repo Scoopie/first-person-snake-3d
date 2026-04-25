@@ -1,0 +1,238 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  background: #07090f;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: white;
+}
+
+body {
+  min-height: 100vh;
+}
+
+#game {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0 45%, rgba(0, 0, 0, 0.28) 100%);
+}
+
+.panel {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(8, 11, 20, 0.68);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  line-height: 1.35;
+}
+
+.score {
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.hint {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 13px;
+}
+
+#message {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 24px;
+  background: rgba(9, 12, 22, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  pointer-events: auto;
+}
+
+#message h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+}
+
+#message p {
+  margin: 8px 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.food-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 14px 0 2px;
+  text-align: left;
+}
+
+.legend-item {
+  display: grid;
+  grid-template-columns: 14px minmax(58px, auto) 1fr;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.legend-item strong {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+}
+
+.legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: 0 0 14px var(--swatch);
+}
+
+button {
+  margin-top: 18px;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-weight: 750;
+  cursor: pointer;
+  color: #09111f;
+  background: linear-gradient(135deg, #b8f7ff, #f6dfb7);
+  box-shadow: 0 12px 30px rgba(184, 247, 255, 0.18);
+}
+
+@media (max-width: 580px) {
+  #message {
+    padding: 22px;
+  }
+
+  #message h1 {
+    font-size: 28px;
+  }
+
+  .food-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .legend-item {
+    grid-template-columns: 12px 1fr;
+    grid-template-rows: auto auto;
+    gap: 2px 6px;
+  }
+
+  .legend-item span:last-child {
+    grid-column: 2;
+  }
+}
+
+.hidden {
+  display: none;
+}
+
+#crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translate(-50%, -50%);
+  opacity: 0.55;
+}
+
+#crosshair::before,
+#crosshair::after {
+  content: "";
+  position: absolute;
+  background: white;
+  border-radius: 99px;
+}
+
+#crosshair::before {
+  left: 7px;
+  top: 0;
+  width: 2px;
+  height: 16px;
+}
+
+#crosshair::after {
+  top: 7px;
+  left: 0;
+  height: 2px;
+  width: 16px;
+}
+
+#floatingFoodInfo {
+  position: fixed;
+  left: 50%;
+  top: 28%;
+  transform: translate(-50%, -50%);
+  min-width: 120px;
+  padding: 10px 16px;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  border-radius: 999px;
+  background: rgba(5, 8, 18, 0.9);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5), 0 0 32px rgba(184, 247, 255, 0.22);
+  text-align: center;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+  text-transform: uppercase;
+  display: none;
+}
+
+#floatingFoodInfo .food-name {
+  font-size: 24px;
+}
+
+#floatingFoodInfo .food-desc {
+  display: none;
+}
+
+@media (pointer: coarse), (max-width: 820px) {
+  .panel {
+    top: 10px;
+    left: 10px;
+    padding: 10px 12px;
+    max-width: calc(100vw - 20px);
+  }
+
+  .hint {
+    font-size: 12px;
+  }
+
+  #crosshair {
+    display: none;
+  }
+
+}

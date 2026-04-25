@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>First-Person Snake 3D</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div class="panel">
+        <div class="score">Score: <span id="score">0</span></div>
+        <div class="hint">A/D or ←/→: turn · R: restart</div>
+        <div class="hint">Food: <strong><span id="foodType">Bonus</span></strong></div>
+        <div class="hint" id="foodDescription"></div>
+      </div>
+      <div id="crosshair"></div>
+      <div id="floatingFoodInfo">
+        <div class="food-name" id="floatingFoodName"></div>
+        <div class="food-desc" id="floatingFoodDescription"></div>
+      </div>
+    </div>
+
+    <div id="message">
+      <h1>First-Person Snake</h1>
+      <p>You are the snake. Eat glowing cubes, grow longer, avoid walls and your own body.</p>
+      <p>Yes, the enemy is technically you. Classic.</p>
+      <div class="food-legend" aria-label="Food legend">
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #fff176"></span><strong>Bonus</strong><span>+5, grow</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #9cffb1"></span><strong>Shrink</strong><span>shorter</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #9fd3ff"></span><strong>Slow</strong><span>grow, slower</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #ff4d4d"></span><strong>Fast</strong><span>grow, speed</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #ff7ab6"></span><strong>Reverse</strong><span>grow, flip turns</span></div>
+        <div class="legend-item"><span class="legend-swatch" style="--swatch: #d8b4fe"></span><strong>Ghost</strong><span>grow, pass through</span></div>
+      </div>
+      <button id="startBtn">Start game</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
