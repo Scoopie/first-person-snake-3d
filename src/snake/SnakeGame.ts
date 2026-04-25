@@ -441,6 +441,38 @@ export class SnakeGame {
     headGlowLight.intensity = glowActive ? 1.25 + flash * 2.75 : 0;
   }
 
+  private updateGhostCollisionVisuals(now: number) {
+    const ghostActive = this.ghostStepsRemaining > 0;
+    const currentStepTime = this.fastStepsRemaining > 0 ? this.stepTime / 1.5 : this.stepTime;
+    const remainingMs = this.ghostStepsRemaining * currentStepTime * 1000;
+    const shouldFlash = ghostActive && remainingMs <= 2000;
+    const flash = shouldFlash ? 0.5 + Math.sin(now * 0.032) * 0.5 : 0;
+    const opacity = ghostActive ? 0.28 + flash * 0.72 : 1;
+
+    for (let index = 1; index < this.meshes.length; index++) {
+      this.setMeshOpacity(this.meshes[index], opacity);
+    }
+
+    for (const obstacle of this.obstacleMeshes) {
+      this.setMeshOpacity(obstacle, opacity);
+    }
+  }
+
+  private setMeshOpacity(mesh: THREE.Mesh, opacity: number) {
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+
+    for (const material of materials) {
+      if (!(material instanceof THREE.MeshStandardMaterial)) {
+        continue;
+      }
+
+      material.opacity = opacity;
+      material.transparent = opacity < 1;
+      material.depthWrite = opacity >= 1;
+      material.needsUpdate = true;
+    }
+  }
+
   private setDirectionFromKeys() {
     const reversed = this.reverseControlsStepsRemaining > 0;
     const leftTurn = reversed ? { x: -this.dir.z, z: this.dir.x } : { x: this.dir.z, z: -this.dir.x };
@@ -689,6 +721,7 @@ export class SnakeGame {
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
 
     this.updateSnakeMeshes(1);
+    this.updateGhostCollisionVisuals(performance.now());
     this.placeFood();
     camera.position.set(0, 10, 12);
 
@@ -758,10 +791,12 @@ export class SnakeGame {
       }
 
       this.updateSnakeMeshes(0.2);
+      this.updateGhostCollisionVisuals(now);
       this.updateCamera(dt);
       this.updateFloatingFoodInfo();
     } else if (this.snake.length > 0) {
       this.updateWrapRipple(now);
+      this.updateGhostCollisionVisuals(now);
       camera.position.lerp(new THREE.Vector3(0, 24, 28), 0.025);
       camera.lookAt(0, 0, 0);
     }
