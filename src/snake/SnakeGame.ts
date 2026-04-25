@@ -23,6 +23,7 @@ export class SnakeGame {
   private snake: Cell[] = [];
   private dir: Direction = { x: 0, z: -1 };
   private nextDir: Direction = { x: 0, z: -1 };
+  private visualForward = new THREE.Vector3(0, 0, -1);
   private foodPos: Cell | null = null;
   private activeFoodType: FoodType = FOOD_TYPES.bonus;
   private score = 0;
@@ -35,6 +36,8 @@ export class SnakeGame {
   private fastStepsRemaining = 0;
   private wrapStepsRemaining = 0;
   private ghostStepsRemaining = 0;
+  private doubleLengthStepsRemaining = 0;
+  private doubleLengthSegments = 0;
   private reverseControlsStepsRemaining = 0;
   private headGlowUntil = 0;
   private headGlowFlashStartsAt = 0;
@@ -51,6 +54,9 @@ export class SnakeGame {
   private deathDebris: DeathDebris[] = [];
   private deathAnimationUntil = 0;
   private gameOverOverlayShown = false;
+  private turnAnimationStartedAt = 0;
+  private turnAnimationUntil = 0;
+  private turnDirection = 0;
   private lastTime = performance.now();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -59,6 +65,7 @@ export class SnakeGame {
     this.highScore = this.loadHighScore();
     this.dom.highScoreEl.textContent = String(this.highScore);
     this.input = new InputController(this.dom, {
+      onDebugFoodType: (index) => this.setDebugFoodType(index),
       onStart: () => this.requestStart()
     });
   }
@@ -85,6 +92,10 @@ export class SnakeGame {
 
   private same(a: Cell | null | undefined, b: Cell | null | undefined) {
     return Boolean(a && b && a.x === b.x && a.z === b.z);
+  }
+
+  private directionToVector(direction: Direction) {
+    return new THREE.Vector3(direction.x, 0, direction.z).normalize();
   }
 
   private requestStart() {
@@ -176,13 +187,8 @@ export class SnakeGame {
     window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(this.highScore));
   }
 
-  private placeFood() {
+  private applyFoodVisuals() {
     const { food, foodBeacon, foodBeaconLight, foodLight, foodMat } = this.sceneBundle;
-
-    this.activeFoodType = this.pickFoodType();
-    this.dom.floatingFoodName.textContent = "";
-    this.dom.floatingFoodDescription.textContent = "";
-    this.dom.floatingFoodInfo.style.display = "none";
 
     foodMat.color.setHex(this.activeFoodType.color);
     foodMat.emissive.setHex(this.activeFoodType.emissive);
@@ -192,6 +198,25 @@ export class SnakeGame {
     if (beaconMaterial instanceof THREE.MeshBasicMaterial) {
       beaconMaterial.color.setHex(this.activeFoodType.emissive);
     }
+  }
+
+  private setDebugFoodType(index: number) {
+    if (this.dead || !this.foodPos || !FOOD_TYPE_LIST[index]) {
+      return;
+    }
+
+    this.activeFoodType = FOOD_TYPE_LIST[index];
+    this.applyFoodVisuals();
+  }
+
+  private placeFood() {
+    const { food, foodBeacon, foodBeaconLight, foodLight } = this.sceneBundle;
+
+    this.activeFoodType = this.pickFoodType();
+    this.dom.floatingFoodName.textContent = "";
+    this.dom.floatingFoodDescription.textContent = "";
+    this.dom.floatingFoodInfo.style.display = "none";
+    this.applyFoodVisuals();
 
     this.foodPos = this.randomFreeCell();
     food.position.copy(this.gridToWorld(this.foodPos));
@@ -513,6 +538,12 @@ export class SnakeGame {
 
   private updateSnakeMeshes(alpha = 1) {
     const { headGlow, headGlowLight, headGlowMat } = this.sceneBundle;
+    const now = performance.now();
+    const turning = now < this.turnAnimationUntil;
+    const turnProgress = turning
+      ? THREE.MathUtils.clamp((now - this.turnAnimationStartedAt) / (this.turnAnimationUntil - this.turnAnimationStartedAt), 0, 1)
+      : 1;
+    const turnEase = turning ? Math.sin(turnProgress * Math.PI) : 0;
 
     this.ensureMeshes();
 
@@ -522,13 +553,13 @@ export class SnakeGame {
       const scale = index === 0 ? 1.1 : Math.max(0.62, 1 - index * 0.015);
       this.meshes[index].scale.setScalar(scale);
       if (!this.dead) {
-        this.meshes[index].rotation.set(0, 0, 0);
+        const lean = this.turnDirection * turnEase * Math.max(0.05, 0.22 - index * 0.026);
+        this.meshes[index].rotation.set(0, 0, lean);
       }
     }
 
     const headPosition = this.meshes[0].position;
     headGlow.position.copy(headPosition);
-    const now = performance.now();
     const glowRemaining = this.headGlowUntil - now;
     const glowActive = glowRemaining > 0;
     const shouldFlash = glowActive && now >= this.headGlowFlashStartsAt;
@@ -590,21 +621,22 @@ export class SnakeGame {
     }
   }
 
+  private startTurnAnimation(previous: Direction, next: Direction) {
+    if (previous.x === next.x && previous.z === next.z) {
+      return;
+    }
+
+    const now = performance.now();
+    const cross = previous.x * next.z - previous.z * next.x;
+    this.turnDirection = Math.sign(cross);
+    this.turnAnimationStartedAt = now;
+    this.turnAnimationUntil = now + Math.min(300, Math.max(170, this.stepTime * 850));
+  }
+
   private updateWrapRipple(now: number) {
-    const { wallGroup } = this.sceneBundle;
     const active = this.wrapStepsRemaining > 0;
     const pulse = active ? 1 + Math.sin(now * 0.012) * 0.08 : 1;
     const glow = active ? 0.45 + Math.sin(now * 0.012) * 0.22 : 0;
-
-    for (const child of wallGroup.children) {
-      if (!(child instanceof THREE.Mesh)) continue;
-      child.scale.y = pulse;
-      const wallMaterial = child.material;
-      const material = Array.isArray(wallMaterial) ? wallMaterial[0] : wallMaterial;
-      if (material instanceof THREE.MeshStandardMaterial) {
-        material.emissiveIntensity = active ? 1.15 + glow : 0.66;
-      }
-    }
 
     for (const wall of this.obstacleMeshes) {
       wall.scale.y = pulse;
@@ -632,8 +664,34 @@ export class SnakeGame {
     headGlowLight.color.setHex(foodType.emissive);
   }
 
+  private removeTemporaryDoubleLength() {
+    const removeCount = Math.min(this.doubleLengthSegments, Math.max(0, this.snake.length - 4));
+
+    for (let index = 0; index < removeCount; index++) {
+      this.snake.pop();
+    }
+
+    this.doubleLengthSegments = 0;
+    this.doubleLengthStepsRemaining = 0;
+  }
+
+  private applyTemporaryDoubleLength() {
+    this.removeTemporaryDoubleLength();
+
+    const addedSegments = this.snake.length;
+    for (let index = 0; index < addedSegments; index++) {
+      const tail = this.snake[this.snake.length - 1];
+      this.snake.push({ ...tail });
+    }
+
+    this.doubleLengthSegments = addedSegments;
+    this.doubleLengthStepsRemaining = 18;
+  }
+
   private step() {
+    const previousDir = { ...this.dir };
     this.dir = this.nextDir;
+    this.startTurnAnimation(previousDir, this.dir);
     const head = this.snake[0];
     let newHead: Cell = { x: head.x + this.dir.x, z: head.z + this.dir.z };
 
@@ -659,19 +717,11 @@ export class SnakeGame {
 
       this.setScore(this.score + foodType.points);
 
-      if (foodType.grow < 0) {
-        const shrinkBy = Math.min(Math.abs(foodType.grow), Math.max(0, this.snake.length - 4));
-        for (let i = 0; i < shrinkBy; i++) {
-          this.snake.pop();
-        }
-      } else {
-        for (let i = 1; i < foodType.grow; i++) {
-          const tail = this.snake[this.snake.length - 1];
-          this.snake.push({ ...tail });
-        }
+      const growBy = foodType.grow - 1;
+      for (let i = 0; i < growBy; i++) {
+        const tail = this.snake[this.snake.length - 1];
+        this.snake.push({ ...tail });
       }
-
-      let shouldAddObstacle = true;
 
       if (foodType === FOOD_TYPES.slow) {
         this.slowStepsRemaining = 18;
@@ -689,16 +739,16 @@ export class SnakeGame {
         this.reverseControlsStepsRemaining = 18;
         glowDurationMs = this.reverseControlsStepsRemaining * this.stepTime * 1000;
       }
+      if (foodType === FOOD_TYPES.double) {
+        this.applyTemporaryDoubleLength();
+        glowDurationMs = this.doubleLengthStepsRemaining * this.stepTime * 1000;
+      }
       if (foodType === FOOD_TYPES.ghost) {
         this.ghostStepsRemaining = 16;
         glowDurationMs = this.ghostStepsRemaining * this.stepTime * 1000;
       }
 
       this.activatePickupVisual(foodType, glowDurationMs);
-
-      if (shouldAddObstacle) {
-        this.addObstacle();
-      }
 
       this.placeFood();
     } else {
@@ -714,6 +764,12 @@ export class SnakeGame {
     if (this.fastStepsRemaining > 0) this.fastStepsRemaining--;
     if (this.wrapStepsRemaining > 0) this.wrapStepsRemaining--;
     if (this.ghostStepsRemaining > 0) this.ghostStepsRemaining--;
+    if (this.doubleLengthStepsRemaining > 0) {
+      this.doubleLengthStepsRemaining--;
+      if (this.doubleLengthStepsRemaining === 0) {
+        this.removeTemporaryDoubleLength();
+      }
+    }
     if (this.reverseControlsStepsRemaining > 0) this.reverseControlsStepsRemaining--;
     this.updateSnakeMeshes(0.55);
   }
@@ -741,24 +797,40 @@ export class SnakeGame {
   private updateCamera(dt: number) {
     const head = this.snake[0];
     const cameraSegmentIndex = Math.min(5, this.snake.length - 1);
-    const cameraAnchor = this.snake[cameraSegmentIndex];
     const headWorld = this.gridToWorld(head);
-    const anchorWorld = this.gridToWorld(cameraAnchor);
-    const forward = new THREE.Vector3(this.dir.x, 0, this.dir.z).normalize();
+    const targetForward = this.directionToVector(this.dir);
+    this.visualForward.lerp(targetForward, 1 - Math.pow(0.0008, dt)).normalize();
+    const forward = this.visualForward;
+    const camera = this.sceneBundle.camera;
+    const cameraDistance = cameraSegmentIndex * CELL_SIZE + 2.8;
 
-    const desired = anchorWorld
+    const desired = headWorld
       .clone()
-      .add(forward.clone().multiplyScalar(-2.8))
+      .add(forward.clone().multiplyScalar(-cameraDistance))
       .add(new THREE.Vector3(0, 7.2, 0));
 
-    this.sceneBundle.camera.position.lerp(desired, 1 - Math.pow(0.004, dt));
+    camera.position.lerp(desired, 1 - Math.pow(0.004, dt));
+
+    const bodyCenter = this.snake
+      .reduce<THREE.Vector3>((sum, cell) => sum.add(this.gridToWorld(cell)), new THREE.Vector3())
+      .multiplyScalar(1 / this.snake.length)
+      .add(new THREE.Vector3(0, 0.9, 0));
+
+    const bodyFocus = THREE.MathUtils.clamp((this.snake.length - 6) / 18, 0, 0.62);
+    const targetFov = THREE.MathUtils.clamp(76 + Math.max(0, this.snake.length - 6) * 1.45, 76, 110);
+    const fovNext = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.pow(0.01, dt));
+    if (Math.abs(camera.fov - fovNext) > 0.01) {
+      camera.fov = fovNext;
+      camera.updateProjectionMatrix();
+    }
 
     const target = headWorld
       .clone()
       .add(forward.clone().multiplyScalar(4.2))
-      .add(new THREE.Vector3(0, 0.9, 0));
+      .add(new THREE.Vector3(0, 0.9, 0))
+      .lerp(bodyCenter, bodyFocus);
 
-    this.sceneBundle.camera.lookAt(target);
+    camera.lookAt(target);
   }
 
   private startDeathAnimation() {
@@ -851,6 +923,7 @@ export class SnakeGame {
     ];
     this.dir = { x: 0, z: -1 };
     this.nextDir = { ...this.dir };
+    this.visualForward.copy(this.directionToVector(this.dir));
     this.setScore(0);
     this.moveTimer = 0;
     this.stepTime = 0.28;
@@ -858,6 +931,8 @@ export class SnakeGame {
     this.fastStepsRemaining = 0;
     this.wrapStepsRemaining = 0;
     this.ghostStepsRemaining = 0;
+    this.doubleLengthStepsRemaining = 0;
+    this.doubleLengthSegments = 0;
     this.reverseControlsStepsRemaining = 0;
     this.headGlowUntil = 0;
     this.headGlowFlashStartsAt = 0;
@@ -869,6 +944,9 @@ export class SnakeGame {
     this.deathDebris = [];
     this.deathAnimationUntil = 0;
     this.gameOverOverlayShown = false;
+    this.turnAnimationStartedAt = 0;
+    this.turnAnimationUntil = 0;
+    this.turnDirection = 0;
     this.foodPos = null;
     this.dead = false;
     this.running = startNow;
@@ -888,14 +966,16 @@ export class SnakeGame {
     this.clearObstacles();
     this.obstacleSegments = [];
     this.mazeWallPlan = this.buildMazeWallPlan();
-    this.dom.messageTitle.textContent = "First-Person Snake";
-    this.dom.messageCopy.textContent = "You are the snake. Eat glowing cubes, avoid walls and your own body.";
+    this.dom.messageTitle.textContent = "Snake 3D";
+    this.dom.messageCopy.textContent = "";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
     this.dom.startBtn.disabled = false;
 
     this.updateSnakeMeshes(1);
     this.updateGhostCollisionVisuals(performance.now());
     this.placeFood();
+    camera.fov = 76;
+    camera.updateProjectionMatrix();
     camera.position.set(0, 10, 12);
 
     if (startNow) {
@@ -921,6 +1001,12 @@ export class SnakeGame {
     this.dir = { x: 1, z: 0 };
     console.assert(this.isSegmentInFrontOfSnake({ start: { x: 2, z: 0 }, direction: { x: 1, z: 0 }, length: 1, cells: [{ x: 2, z: 0 }] }), "isSegmentInFrontOfSnake() should detect a wall ahead");
     console.assert(!this.isSegmentInFrontOfSnake({ start: { x: -2, z: 0 }, direction: { x: 1, z: 0 }, length: 1, cells: [{ x: -2, z: 0 }] }), "isSegmentInFrontOfSnake() should reject a wall behind");
+
+    this.snake = [{ x: 0, z: 0 }, { x: 0, z: 1 }, { x: 0, z: 2 }, { x: 0, z: 3 }];
+    this.applyTemporaryDoubleLength();
+    this.applyTemporaryDoubleLength();
+    console.assert(this.snake.length === 8 && this.doubleLengthSegments === 4, "Double should refresh instead of stacking exponentially");
+    this.removeTemporaryDoubleLength();
 
     const previousParticleCount = this.blastParticles.length;
     this.updateBlastParticles(0);
