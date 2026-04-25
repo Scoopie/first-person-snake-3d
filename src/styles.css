@@ -47,6 +47,12 @@ body {
   letter-spacing: 0.03em;
 }
 
+.high-score {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 14px;
+}
+
 .hint {
   margin-top: 6px;
   color: rgba(255, 255, 255, 0.74);

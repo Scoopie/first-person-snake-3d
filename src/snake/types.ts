@@ -40,6 +40,7 @@ export type BlastParticle = THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMate
 export interface GameDom {
   canvas: HTMLCanvasElement;
   scoreEl: HTMLSpanElement;
+  highScoreEl: HTMLSpanElement;
   foodTypeEl: HTMLSpanElement;
   foodDescriptionEl: HTMLElement;
   floatingFoodInfo: HTMLElement;

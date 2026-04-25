@@ -5,6 +5,8 @@ import { InputController } from "./input";
 import { createScene } from "./scene";
 import type { BlastParticle, Cell, Direction, FoodType, GameDom, ObstacleSegment } from "./types";
 
+const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
+
 export class SnakeGame {
   private readonly dom: GameDom;
   private readonly sceneBundle;
@@ -16,6 +18,7 @@ export class SnakeGame {
   private foodPos: Cell | null = null;
   private activeFoodType: FoodType = FOOD_TYPES.bonus;
   private score = 0;
+  private highScore = 0;
   private running = false;
   private dead = false;
   private moveTimer = 0;
@@ -42,6 +45,8 @@ export class SnakeGame {
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.dom = getGameDom(canvas);
     this.sceneBundle = createScene(canvas);
+    this.highScore = this.loadHighScore();
+    this.dom.highScoreEl.textContent = String(this.highScore);
     this.input = new InputController(this.dom, {
       onRestart: () => this.reset(true),
       onStart: () => this.reset(true)
@@ -119,6 +124,24 @@ export class SnakeGame {
     }
 
     return FOOD_TYPES.bonus;
+  }
+
+  private loadHighScore() {
+    const storedScore = Number.parseInt(window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY) ?? "0", 10);
+    return Number.isFinite(storedScore) ? Math.max(0, storedScore) : 0;
+  }
+
+  private setScore(score: number) {
+    this.score = score;
+    this.dom.scoreEl.textContent = String(this.score);
+
+    if (this.score <= this.highScore) {
+      return;
+    }
+
+    this.highScore = this.score;
+    this.dom.highScoreEl.textContent = String(this.highScore);
+    window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(this.highScore));
   }
 
   private placeFood() {
@@ -503,8 +526,7 @@ export class SnakeGame {
       const foodType = this.activeFoodType;
       let glowDurationMs = 3000;
 
-      this.score += foodType.points;
-      this.dom.scoreEl.textContent = String(this.score);
+      this.setScore(this.score + foodType.points);
 
       if (foodType.grow < 0) {
         const shrinkBy = Math.min(Math.abs(foodType.grow), Math.max(0, this.snake.length - 4));
@@ -613,7 +635,7 @@ export class SnakeGame {
     this.running = false;
     this.dom.message.classList.remove("hidden");
     this.dom.messageTitle.textContent = "Game over";
-    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. You have successfully met yourself at speed.`;
+    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. High score: <strong>${this.highScore}</strong>.`;
     this.dom.startBtn.textContent = "Play again";
   }
 
@@ -628,7 +650,7 @@ export class SnakeGame {
     ];
     this.dir = { x: 0, z: -1 };
     this.nextDir = { ...this.dir };
-    this.score = 0;
+    this.setScore(0);
     this.moveTimer = 0;
     this.stepTime = 0.28;
     this.slowStepsRemaining = 0;
@@ -662,9 +684,8 @@ export class SnakeGame {
     this.clearObstacles();
     this.obstacleSegments = [];
     this.mazeWallPlan = this.buildMazeWallPlan();
-    this.dom.scoreEl.textContent = "0";
     this.dom.messageTitle.textContent = "First-Person Snake";
-    this.dom.messageCopy.textContent = "You are the snake. Eat glowing cubes, grow longer, avoid walls and your own body.";
+    this.dom.messageCopy.textContent = "You are the snake. Eat glowing cubes, avoid walls and your own body.";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
 
     this.updateSnakeMeshes(1);
