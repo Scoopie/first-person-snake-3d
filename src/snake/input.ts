@@ -1,7 +1,6 @@
 import type { GameDom } from "./types";
 
 interface InputCallbacks {
-  onRestart: () => void;
   onStart: () => void;
 }
 
@@ -44,11 +43,6 @@ export class InputController {
   private handleKeyDown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
     this.keys.add(key);
-
-    if (key === "r") {
-      this.callbacks.onRestart();
-      return;
-    }
 
     if (!this.dom.message.classList.contains("hidden") && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();

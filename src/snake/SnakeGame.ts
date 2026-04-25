@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { CELL_SIZE, FLOOR_Y, FOOD_TYPE_LIST, FOOD_TYPES, HALF_GRID } from "./config";
 import { getGameDom } from "./dom";
 import { InputController } from "./input";
@@ -7,10 +9,16 @@ import type { BlastParticle, Cell, Direction, FoodType, GameDom, ObstacleSegment
 
 const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
 
+interface DeathDebris {
+  velocity: THREE.Vector3;
+  spin: THREE.Vector3;
+}
+
 export class SnakeGame {
   private readonly dom: GameDom;
   private readonly sceneBundle;
   private readonly input: InputController;
+  private readonly segmentGeometry = this.createRoundedBoxGeometry(1.42, 1.42, 1.42, 0.22, 5);
 
   private snake: Cell[] = [];
   private dir: Direction = { x: 0, z: -1 };
@@ -40,6 +48,9 @@ export class SnakeGame {
   private obstacleSegments: ObstacleSegment[] = [];
   private mazeWallPlan: ObstacleSegment[] = [];
   private blastParticles: BlastParticle[] = [];
+  private deathDebris: DeathDebris[] = [];
+  private deathAnimationUntil = 0;
+  private gameOverOverlayShown = false;
   private lastTime = performance.now();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -48,8 +59,7 @@ export class SnakeGame {
     this.highScore = this.loadHighScore();
     this.dom.highScoreEl.textContent = String(this.highScore);
     this.input = new InputController(this.dom, {
-      onRestart: () => this.reset(true),
-      onStart: () => this.reset(true)
+      onStart: () => this.requestStart()
     });
   }
 
@@ -77,6 +87,14 @@ export class SnakeGame {
     return Boolean(a && b && a.x === b.x && a.z === b.z);
   }
 
+  private requestStart() {
+    if (this.running || (this.dead && performance.now() < this.deathAnimationUntil)) {
+      return;
+    }
+
+    this.reset(true);
+  }
+
   private isOccupied(position: Cell) {
     return this.snake.some((cell) => this.same(cell, position)) || this.obstacles.some((cell) => this.same(cell, position));
   }
@@ -86,6 +104,20 @@ export class SnakeGame {
       x: start.x + direction.x * index,
       z: start.z + direction.z * index
     }));
+  }
+
+  private cellsForCornerWall(start: Cell, direction: Direction, length: number, turn: Direction, turnLength: number) {
+    const cells = this.cellsForWall(start, direction, length);
+    const corner = cells[cells.length - 1];
+
+    for (let index = 1; index < turnLength; index++) {
+      cells.push({
+        x: corner.x + turn.x * index,
+        z: corner.z + turn.z * index
+      });
+    }
+
+    return cells;
   }
 
   private areCellsFree(cells: Cell[]) {
@@ -148,8 +180,6 @@ export class SnakeGame {
     const { food, foodBeacon, foodBeaconLight, foodLight, foodMat } = this.sceneBundle;
 
     this.activeFoodType = this.pickFoodType();
-    this.dom.foodTypeEl.textContent = this.activeFoodType.label;
-    this.dom.foodDescriptionEl.textContent = this.activeFoodType.description;
     this.dom.floatingFoodName.textContent = "";
     this.dom.floatingFoodDescription.textContent = "";
     this.dom.floatingFoodInfo.style.display = "none";
@@ -199,29 +229,39 @@ export class SnakeGame {
 
   private buildMazeWallPlan(): ObstacleSegment[] {
     const plan: ObstacleSegment[] = [];
-    const add = (start: Cell, direction: Direction, length: number) => {
+    const addCorner = (start: Cell, direction: Direction, length: number, turn: Direction, turnLength: number) => {
       plan.push({
         start,
         direction,
         length,
-        cells: this.cellsForWall(start, direction, length)
+        turn,
+        turnLength,
+        cells: this.cellsForCornerWall(start, direction, length, turn, turnLength)
       });
     };
 
-    add({ x: -8, z: -8 }, { x: 1, z: 0 }, 5); add({ x: 4, z: -8 }, { x: 1, z: 0 }, 5);
-    add({ x: -8, z: 8 }, { x: 1, z: 0 }, 5); add({ x: 4, z: 8 }, { x: 1, z: 0 }, 5);
-    add({ x: -8, z: -5 }, { x: 0, z: 1 }, 4); add({ x: 8, z: -5 }, { x: 0, z: 1 }, 4);
-    add({ x: -8, z: 2 }, { x: 0, z: 1 }, 4); add({ x: 8, z: 2 }, { x: 0, z: 1 }, 4);
-    add({ x: -5, z: -5 }, { x: 1, z: 0 }, 4); add({ x: 2, z: -5 }, { x: 1, z: 0 }, 4);
-    add({ x: -5, z: 5 }, { x: 1, z: 0 }, 4); add({ x: 2, z: 5 }, { x: 1, z: 0 }, 4);
-    add({ x: -5, z: -2 }, { x: 0, z: 1 }, 5); add({ x: 5, z: -2 }, { x: 0, z: 1 }, 5);
-    add({ x: -2, z: -9 }, { x: 0, z: 1 }, 4); add({ x: 2, z: -9 }, { x: 0, z: 1 }, 4);
-    add({ x: -2, z: 6 }, { x: 0, z: 1 }, 4); add({ x: 2, z: 6 }, { x: 0, z: 1 }, 4);
-    add({ x: -2, z: -2 }, { x: 1, z: 0 }, 5);
-    add({ x: -2, z: 2 }, { x: 1, z: 0 }, 5);
-    add({ x: -10, z: 0 }, { x: 1, z: 0 }, 4); add({ x: 7, z: 0 }, { x: 1, z: 0 }, 4);
-    add({ x: -10, z: -10 }, { x: 0, z: 1 }, 3); add({ x: 10, z: -10 }, { x: 0, z: 1 }, 3);
-    add({ x: -10, z: 8 }, { x: 0, z: 1 }, 3); add({ x: 10, z: 8 }, { x: 0, z: 1 }, 3);
+    addCorner({ x: -9, z: -8 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 4);
+    addCorner({ x: 5, z: -8 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 4);
+    addCorner({ x: -9, z: 8 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 4);
+    addCorner({ x: 5, z: 8 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 4);
+    addCorner({ x: -8, z: -5 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 4);
+    addCorner({ x: 8, z: -5 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 4);
+    addCorner({ x: -8, z: 2 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 4);
+    addCorner({ x: 8, z: 2 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 4);
+    addCorner({ x: -5, z: -5 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
+    addCorner({ x: 2, z: -5 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
+    addCorner({ x: -5, z: 5 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
+    addCorner({ x: 2, z: 5 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
+    addCorner({ x: -5, z: -2 }, { x: 0, z: 1 }, 5, { x: 1, z: 0 }, 3);
+    addCorner({ x: 5, z: -2 }, { x: 0, z: 1 }, 5, { x: -1, z: 0 }, 3);
+    addCorner({ x: -2, z: -9 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 3);
+    addCorner({ x: 2, z: -9 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 3);
+    addCorner({ x: -2, z: 6 }, { x: 0, z: 1 }, 4, { x: -1, z: 0 }, 3);
+    addCorner({ x: 2, z: 6 }, { x: 0, z: 1 }, 4, { x: 1, z: 0 }, 3);
+    addCorner({ x: -2, z: -2 }, { x: 1, z: 0 }, 5, { x: 0, z: -1 }, 3);
+    addCorner({ x: -2, z: 2 }, { x: 1, z: 0 }, 5, { x: 0, z: 1 }, 3);
+    addCorner({ x: -10, z: 0 }, { x: 1, z: 0 }, 4, { x: 0, z: -1 }, 3);
+    addCorner({ x: 7, z: 0 }, { x: 1, z: 0 }, 4, { x: 0, z: 1 }, 3);
 
     return plan.sort(() => Math.random() - 0.5);
   }
@@ -232,16 +272,41 @@ export class SnakeGame {
     this.obstacles.push(...segment.cells);
     this.obstacleSegments.push(segment);
 
-    const horizontal = segment.direction.x !== 0;
-    const sizeX = horizontal ? segment.length * CELL_SIZE - 0.28 : 1.65;
-    const sizeZ = horizontal ? 1.65 : segment.length * CELL_SIZE - 0.28;
-    const first = this.gridToWorld(segment.cells[0]);
-    const last = this.gridToWorld(segment.cells[segment.cells.length - 1]);
-    const center = first.clone().add(last).multiplyScalar(0.5);
-
+    const minX = Math.min(...segment.cells.map((cell) => cell.x));
+    const maxX = Math.max(...segment.cells.map((cell) => cell.x));
+    const minZ = Math.min(...segment.cells.map((cell) => cell.z));
+    const maxZ = Math.max(...segment.cells.map((cell) => cell.z));
+    const boundsCenter = this.gridToWorld({ x: (minX + maxX) / 2, z: (minZ + maxZ) / 2 }).add(new THREE.Vector3(0, 0.35, 0));
     const material = obstacleMats[THREE.MathUtils.randInt(0, obstacleMats.length - 1)];
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sizeX, 2.2, sizeZ), material);
-    mesh.position.copy(center).add(new THREE.Vector3(0, 0.35, 0));
+    const geometries: THREE.BufferGeometry[] = [];
+    const addLeg = (cells: Cell[]) => {
+      const horizontal = cells.length > 1 && cells[0].z === cells[cells.length - 1].z;
+      const sizeX = horizontal ? cells.length * CELL_SIZE - 0.28 : 1.65;
+      const sizeZ = horizontal ? 1.65 : cells.length * CELL_SIZE - 0.28;
+      const first = this.gridToWorld(cells[0]);
+      const last = this.gridToWorld(cells[cells.length - 1]);
+      const center = first.clone().add(last).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.35, 0));
+      const geometry = new RoundedBoxGeometry(sizeX, 2.2, sizeZ, 4, 0.34);
+      geometry.translate(center.x - boundsCenter.x, center.y - boundsCenter.y, center.z - boundsCenter.z);
+      geometries.push(geometry);
+    };
+
+    const firstLeg = this.cellsForWall(segment.start, segment.direction, segment.length);
+    addLeg(firstLeg);
+
+    if (segment.turn && segment.turnLength && segment.turnLength > 1) {
+      const corner = firstLeg[firstLeg.length - 1];
+      addLeg(this.cellsForWall(corner, segment.turn, segment.turnLength));
+    }
+
+    const geometry = mergeGeometries(geometries, false) ?? geometries[0];
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(boundsCenter);
+    mesh.userData.wallSize = {
+      x: (maxX - minX + 1) * CELL_SIZE,
+      y: 2.2,
+      z: (maxZ - minZ + 1) * CELL_SIZE
+    };
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
@@ -264,10 +329,11 @@ export class SnakeGame {
 
   private spawnWallExplosion(mesh: THREE.Mesh) {
     const { blastParticleGeo, particleGroup } = this.sceneBundle;
-    const params = mesh.geometry instanceof THREE.BoxGeometry ? mesh.geometry.parameters : { width: 1, height: 1, depth: 1 };
-    const halfX = (params.width ?? 1) / 2;
-    const halfY = (params.height ?? 1) / 2;
-    const halfZ = (params.depth ?? 1) / 2;
+    const size = mesh.userData.wallSize as { x?: number; y?: number; z?: number } | undefined;
+    const params = mesh.geometry instanceof THREE.BoxGeometry ? mesh.geometry.parameters : undefined;
+    const halfX = (size?.x ?? params?.width ?? 1) / 2;
+    const halfY = (size?.y ?? params?.height ?? 1) / 2;
+    const halfZ = (size?.z ?? params?.depth ?? 1) / 2;
 
     for (let i = 0; i < 22; i++) {
       const meshMaterial = mesh.material;
@@ -396,11 +462,42 @@ export class SnakeGame {
     };
   }
 
+  private createRoundedBoxGeometry(width: number, height: number, depth: number, radius: number, segments: number) {
+    const shape = new THREE.Shape();
+    const x = -width / 2;
+    const y = -height / 2;
+    const safeRadius = Math.min(radius, width / 2, height / 2);
+
+    shape.moveTo(x + safeRadius, y);
+    shape.lineTo(x + width - safeRadius, y);
+    shape.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    shape.lineTo(x + width, y + height - safeRadius);
+    shape.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+    shape.lineTo(x + safeRadius, y + height);
+    shape.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+    shape.lineTo(x, y + safeRadius);
+    shape.quadraticCurveTo(x, y, x + safeRadius, y);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      bevelEnabled: true,
+      bevelSegments: segments,
+      bevelSize: safeRadius,
+      bevelThickness: safeRadius,
+      curveSegments: segments,
+      depth,
+      steps: 1
+    });
+
+    geometry.center();
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
   private ensureMeshes() {
     const { snakeGroup, headMat, snakeMat } = this.sceneBundle;
 
     while (this.meshes.length < this.snake.length) {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.42, 1.42, 1.42), this.meshes.length === 0 ? headMat : snakeMat);
+      const mesh = new THREE.Mesh(this.segmentGeometry, this.meshes.length === 0 ? headMat : snakeMat);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       snakeGroup.add(mesh);
@@ -411,7 +508,6 @@ export class SnakeGame {
       const mesh = this.meshes.pop();
       if (!mesh) break;
       snakeGroup.remove(mesh);
-      mesh.geometry.dispose();
     }
   }
 
@@ -425,6 +521,9 @@ export class SnakeGame {
       this.meshes[index].position.lerp(target, alpha);
       const scale = index === 0 ? 1.1 : Math.max(0.62, 1 - index * 0.015);
       this.meshes[index].scale.setScalar(scale);
+      if (!this.dead) {
+        this.meshes[index].rotation.set(0, 0, 0);
+      }
     }
 
     const headPosition = this.meshes[0].position;
@@ -662,12 +761,82 @@ export class SnakeGame {
     this.sceneBundle.camera.lookAt(target);
   }
 
+  private startDeathAnimation() {
+    const headPosition = this.meshes[0]?.position.clone() ?? new THREE.Vector3();
+    this.deathAnimationUntil = performance.now() + 1200;
+    this.deathDebris = this.meshes.map((mesh, index) => {
+      const awayFromHead = mesh.position.clone().sub(headPosition);
+
+      if (awayFromHead.lengthSq() < 0.01) {
+        awayFromHead.set(this.dir.x, 0, this.dir.z).multiplyScalar(-1);
+      }
+
+      const scatter = awayFromHead
+        .normalize()
+        .multiplyScalar(4.8 + index * 0.12)
+        .add(new THREE.Vector3((Math.random() - 0.5) * 2.2, 6.5 + Math.random() * 3, (Math.random() - 0.5) * 2.2));
+
+      return {
+        velocity: scatter,
+        spin: new THREE.Vector3(
+          (Math.random() - 0.5) * 8,
+          (Math.random() - 0.5) * 8,
+          (Math.random() - 0.5) * 8
+        )
+      };
+    });
+  }
+
+  private updateDeathAnimation(dt: number, now: number) {
+    if (!this.dead) {
+      return;
+    }
+
+    if (now >= this.deathAnimationUntil) {
+      this.showGameOverOverlay();
+      return;
+    }
+
+    const remaining = Math.max(0, (this.deathAnimationUntil - now) / 1200);
+    const scaleFloor = 0.18 + remaining * 0.82;
+
+    for (let index = 0; index < this.meshes.length; index++) {
+      const debris = this.deathDebris[index];
+      const mesh = this.meshes[index];
+
+      if (!debris) {
+        continue;
+      }
+
+      debris.velocity.y -= 11 * dt;
+      mesh.position.addScaledVector(debris.velocity, dt);
+      mesh.rotation.x += debris.spin.x * dt;
+      mesh.rotation.y += debris.spin.y * dt;
+      mesh.rotation.z += debris.spin.z * dt;
+      mesh.scale.setScalar((index === 0 ? 1.1 : Math.max(0.62, 1 - index * 0.015)) * scaleFloor);
+    }
+  }
+
+  private showGameOverOverlay() {
+    if (this.gameOverOverlayShown) {
+      return;
+    }
+
+    this.gameOverOverlayShown = true;
+    this.dom.message.classList.remove("hidden");
+    this.dom.startBtn.disabled = false;
+    this.dom.messageTitle.textContent = "Game over";
+    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. High score: <strong>${this.highScore}</strong>.`;
+    this.dom.startBtn.textContent = "Play again";
+  }
+
   private gameOver() {
     this.dead = true;
     this.running = false;
-    this.dom.message.classList.remove("hidden");
-    this.dom.messageTitle.textContent = "Game over";
-    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. High score: <strong>${this.highScore}</strong>.`;
+    this.gameOverOverlayShown = false;
+    this.startDeathAnimation();
+    this.dom.message.classList.add("hidden");
+    this.dom.startBtn.disabled = true;
     this.dom.startBtn.textContent = "Play again";
   }
 
@@ -697,6 +866,9 @@ export class SnakeGame {
     this.pickupLabelColor = 0xffffff;
     this.pickupLabelEmissive = 0xffffff;
     this.obstacles = [];
+    this.deathDebris = [];
+    this.deathAnimationUntil = 0;
+    this.gameOverOverlayShown = false;
     this.foodPos = null;
     this.dead = false;
     this.running = startNow;
@@ -719,6 +891,7 @@ export class SnakeGame {
     this.dom.messageTitle.textContent = "First-Person Snake";
     this.dom.messageCopy.textContent = "You are the snake. Eat glowing cubes, avoid walls and your own body.";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
+    this.dom.startBtn.disabled = false;
 
     this.updateSnakeMeshes(1);
     this.updateGhostCollisionVisuals(performance.now());
@@ -797,8 +970,11 @@ export class SnakeGame {
     } else if (this.snake.length > 0) {
       this.updateWrapRipple(now);
       this.updateGhostCollisionVisuals(now);
-      camera.position.lerp(new THREE.Vector3(0, 24, 28), 0.025);
-      camera.lookAt(0, 0, 0);
+      this.updateDeathAnimation(dt, now);
+      if (!this.dead || now >= this.deathAnimationUntil) {
+        camera.position.lerp(new THREE.Vector3(0, 24, 28), 0.025);
+        camera.lookAt(0, 0, 0);
+      }
     }
 
     composer.render();

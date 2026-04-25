@@ -26,6 +26,8 @@ export interface ObstacleSegment {
   start: Cell;
   direction: Direction;
   length: number;
+  turn?: Direction;
+  turnLength?: number;
   cells: Cell[];
 }
 
@@ -41,8 +43,6 @@ export interface GameDom {
   canvas: HTMLCanvasElement;
   scoreEl: HTMLSpanElement;
   highScoreEl: HTMLSpanElement;
-  foodTypeEl: HTMLSpanElement;
-  foodDescriptionEl: HTMLElement;
   floatingFoodInfo: HTMLElement;
   floatingFoodName: HTMLElement;
   floatingFoodDescription: HTMLElement;
