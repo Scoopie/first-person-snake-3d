@@ -376,7 +376,10 @@ export class SnakeGame {
     this.dom.leaderboardSubmit.disabled = false;
     this.setLeaderboardStatus("");
     this.updateLeaderboardSubmitVisibility();
-    this.dom.leaderboardName.focus();
+    requestAnimationFrame(() => {
+      this.dom.leaderboardName.focus({ preventScroll: true });
+      this.dom.leaderboardName.scrollIntoView({ block: "center", inline: "nearest" });
+    });
   }
 
   private showGameOverSummary(statusMessage = "") {
@@ -429,7 +432,8 @@ export class SnakeGame {
       const name = this.sanitizeLeaderboardName(this.dom.leaderboardName.value);
       if (!name) {
         this.setLeaderboardStatus("Enter a name.");
-        this.dom.leaderboardName.focus();
+        this.dom.leaderboardName.focus({ preventScroll: true });
+        this.dom.leaderboardName.scrollIntoView({ block: "center", inline: "nearest" });
         return;
       }
 

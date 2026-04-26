@@ -118,10 +118,10 @@ body {
 #message {
   position: fixed;
   left: 50%;
-  top: 50%;
+  top: calc(var(--visual-viewport-top, 0px) + var(--visual-viewport-height, 100vh) / 2);
   transform: translate(-50%, -50%);
   width: min(640px, calc(100vw - 32px));
-  max-height: min(86vh, 720px);
+  max-height: min(calc(var(--visual-viewport-height, 86vh) - 24px), 720px);
   overflow: auto;
   padding: 28px;
   border: 1px solid rgba(255, 255, 255, 0.18);

@@ -10,6 +10,20 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 const game = new SnakeGame(canvas);
 game.start();
 
+function syncVisualViewportVars() {
+  const viewport = window.visualViewport;
+  const height = viewport?.height ?? window.innerHeight;
+  const offsetTop = viewport?.offsetTop ?? 0;
+
+  document.documentElement.style.setProperty("--visual-viewport-height", `${height}px`);
+  document.documentElement.style.setProperty("--visual-viewport-top", `${offsetTop}px`);
+}
+
+syncVisualViewportVars();
+window.addEventListener("resize", syncVisualViewportVars);
+window.visualViewport?.addEventListener("resize", syncVisualViewportVars);
+window.visualViewport?.addEventListener("scroll", syncVisualViewportVars);
+
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   let reloadedForServiceWorkerUpdate = false;
 
