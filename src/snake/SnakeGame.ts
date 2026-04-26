@@ -50,6 +50,10 @@ export class SnakeGame {
   private deathDebris: DeathDebris[] = [];
   private deathAnimationUntil = 0;
   private gameOverOverlayShown = false;
+  private leaderboardEntries: LeaderboardEntry[] = [];
+  private leaderboardLoaded = false;
+  private submittedGameOverScore: number | null = null;
+  private submittingLeaderboardScore = false;
   private turnAnimationStartedAt = 0;
   private turnAnimationUntil = 0;
   private turnDirection = 0;
@@ -263,6 +267,7 @@ export class SnakeGame {
   }
 
   private renderLeaderboard(entries: LeaderboardEntry[]) {
+    this.leaderboardEntries = entries;
     this.dom.leaderboardList.replaceChildren();
 
     if (entries.length === 0) {
@@ -288,12 +293,33 @@ export class SnakeGame {
     this.setLeaderboardStatus("Loading scores...");
     try {
       const entries = await fetchLeaderboard();
+      this.leaderboardLoaded = true;
       this.renderLeaderboard(entries);
       this.setLeaderboardStatus("");
+      return true;
     } catch {
+      this.leaderboardLoaded = false;
       this.renderLeaderboard([]);
       this.setLeaderboardStatus("Unable to load web scores.");
+      return false;
     }
+  }
+
+  private scoreQualifiesForLeaderboard(score: number) {
+    if (score <= 0) {
+      return false;
+    }
+
+    return (
+      this.leaderboardLoaded &&
+      (this.leaderboardEntries.length < 5 || score > this.leaderboardEntries[this.leaderboardEntries.length - 1].score)
+    );
+  }
+
+  private updateLeaderboardSubmitVisibility() {
+    const alreadySubmitted = this.submittedGameOverScore === this.score;
+    const shouldShow = this.dead && this.gameOverOverlayShown && !alreadySubmitted && this.scoreQualifiesForLeaderboard(this.score);
+    this.dom.leaderboardSubmitRow.classList.toggle("hidden", !shouldShow);
   }
 
   private sanitizeLeaderboardName(name: string) {
@@ -301,31 +327,53 @@ export class SnakeGame {
   }
 
   private async submitScore() {
-    if (this.score <= 0) {
-      this.setLeaderboardStatus("Score a point first.");
+    if (this.submittingLeaderboardScore) {
       return;
     }
 
-    const name = this.sanitizeLeaderboardName(this.dom.leaderboardName.value);
-    if (!name) {
-      this.setLeaderboardStatus("Enter a name.");
-      this.dom.leaderboardName.focus();
+    if (this.submittedGameOverScore === this.score) {
+      this.setLeaderboardStatus("Score already submitted.");
+      this.updateLeaderboardSubmitVisibility();
       return;
     }
 
+    this.submittingLeaderboardScore = true;
     this.dom.leaderboardSubmit.disabled = true;
-    this.setLeaderboardStatus("Submitting...");
 
     try {
+      const loaded = await this.refreshLeaderboard();
+      if (!loaded) {
+        this.updateLeaderboardSubmitVisibility();
+        return;
+      }
+
+      if (!this.scoreQualifiesForLeaderboard(this.score)) {
+        this.setLeaderboardStatus("Score did not make the top 5.");
+        this.updateLeaderboardSubmitVisibility();
+        return;
+      }
+
+      const name = this.sanitizeLeaderboardName(this.dom.leaderboardName.value);
+      if (!name) {
+        this.setLeaderboardStatus("Enter a name.");
+        this.dom.leaderboardName.focus();
+        return;
+      }
+
+      this.setLeaderboardStatus("Submitting...");
       await submitLeaderboardScore(name, this.score);
       window.localStorage.setItem(LEADERBOARD_NAME_STORAGE_KEY, name);
       this.dom.leaderboardName.value = name;
-      this.setLeaderboardStatus("Score submitted.");
+      this.submittedGameOverScore = this.score;
+      this.updateLeaderboardSubmitVisibility();
       await this.refreshLeaderboard();
+      this.updateLeaderboardSubmitVisibility();
+      this.setLeaderboardStatus("Score submitted.");
     } catch {
       this.setLeaderboardStatus("Unable to submit score.");
     } finally {
-      this.dom.leaderboardSubmit.disabled = false;
+      this.submittingLeaderboardScore = false;
+      this.dom.leaderboardSubmit.disabled = this.submittedGameOverScore === this.score;
     }
   }
 
@@ -648,8 +696,8 @@ export class SnakeGame {
     this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>.`;
     this.dom.startBtn.textContent = "Play again";
     this.dom.leaderboardPanel.classList.remove("hidden");
-    this.dom.leaderboardSubmitRow.classList.toggle("hidden", this.score <= 0);
-    void this.refreshLeaderboard();
+    this.dom.leaderboardSubmitRow.classList.add("hidden");
+    void this.refreshLeaderboard().then(() => this.updateLeaderboardSubmitVisibility());
   }
 
   private gameOver() {
@@ -693,6 +741,8 @@ export class SnakeGame {
     this.deathDebris = [];
     this.deathAnimationUntil = 0;
     this.gameOverOverlayShown = false;
+    this.submittedGameOverScore = null;
+    this.submittingLeaderboardScore = false;
     this.turnAnimationStartedAt = 0;
     this.turnAnimationUntil = 0;
     this.turnDirection = 0;
@@ -709,6 +759,7 @@ export class SnakeGame {
     this.dom.startBtn.disabled = false;
     this.dom.leaderboardPanel.classList.toggle("hidden", startNow);
     this.dom.leaderboardSubmitRow.classList.add("hidden");
+    this.dom.leaderboardSubmit.disabled = false;
     if (!startNow) {
       void this.refreshLeaderboard();
     }

@@ -129,89 +129,6 @@ body {
   color: rgba(255, 255, 255, 0.78);
 }
 
-.food-legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  margin: 14px 0 2px;
-  text-align: left;
-}
-
-.legend-item {
-  display: grid;
-  grid-template-columns: 18px minmax(58px, auto) 1fr;
-  align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 11px;
-  line-height: 1.15;
-}
-
-.legend-item strong {
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 12px;
-}
-
-.legend-icon {
-  position: relative;
-  width: 15px;
-  height: 15px;
-  filter: drop-shadow(0 0 8px var(--swatch));
-}
-
-.legend-plus::before,
-.legend-plus::after {
-  position: absolute;
-  content: "";
-  inset: 2px 6px;
-  border-radius: 2px;
-  background: var(--swatch);
-}
-
-.legend-plus::after {
-  transform: rotate(90deg);
-}
-
-.legend-hourglass {
-  background: var(--swatch);
-  clip-path: polygon(16% 0, 84% 0, 58% 38%, 50% 50%, 58% 62%, 84% 100%, 16% 100%, 42% 62%, 50% 50%, 42% 38%);
-}
-
-.legend-bolt {
-  background: var(--swatch);
-  clip-path: polygon(58% 0, 8% 54%, 42% 54%, 30% 100%, 94% 38%, 58% 38%);
-}
-
-.legend-double::before,
-.legend-double::after {
-  position: absolute;
-  content: "";
-  width: 13px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--swatch);
-}
-
-.legend-double::before {
-  left: 0;
-  top: 2px;
-}
-
-.legend-double::after {
-  right: 0;
-  bottom: 2px;
-}
-
-.legend-ghost {
-  background: var(--swatch);
-  clip-path: polygon(12% 100%, 12% 34%, 20% 14%, 38% 2%, 62% 2%, 80% 14%, 88% 34%, 88% 100%, 72% 82%, 58% 100%, 44% 82%, 30% 100%);
-}
-
 .leaderboard-panel {
   margin-top: 14px;
   padding: 12px;
@@ -323,19 +240,6 @@ button {
     font-size: 28px;
   }
 
-  .food-legend {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .legend-item {
-    grid-template-columns: 18px 1fr;
-    grid-template-rows: auto auto;
-    gap: 2px 6px;
-  }
-
-  .legend-item span:last-child {
-    grid-column: 2;
-  }
 }
 
 @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
