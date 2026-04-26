@@ -51,7 +51,14 @@ export class InputController {
       this.callbacks.onDebugFoodType(Number.parseInt(key, 10) - 1);
     }
 
-    if (!typingInControl && !this.dom.message.classList.contains("hidden") && (event.key === "Enter" || event.key === " ")) {
+    const enteringHighScore = !this.dom.highScoreEntryPanel.classList.contains("hidden");
+
+    if (
+      !typingInControl &&
+      !enteringHighScore &&
+      !this.dom.message.classList.contains("hidden") &&
+      (event.key === "Enter" || event.key === " ")
+    ) {
       event.preventDefault();
       this.callbacks.onStart();
     }
@@ -70,7 +77,7 @@ export class InputController {
   private handleOverlayClick = (event: MouseEvent) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("button, input, .leaderboard-panel")) return;
+    if (target.closest("button, input, .leaderboard-panel, .high-score-entry")) return;
     this.callbacks.onStart();
   };
 }

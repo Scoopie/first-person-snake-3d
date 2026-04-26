@@ -25,9 +25,12 @@ export interface GameDom {
   floatingFoodInfo: HTMLElement;
   floatingFoodName: HTMLElement;
   message: HTMLElement;
+  highScoreEntryPanel: HTMLElement;
   leaderboardList: HTMLOListElement;
   leaderboardName: HTMLInputElement;
   leaderboardPanel: HTMLElement;
+  leaderboardRank: HTMLElement;
+  leaderboardSkip: HTMLButtonElement;
   leaderboardStatus: HTMLElement;
   leaderboardSubmitRow: HTMLElement;
   leaderboardSubmit: HTMLButtonElement;

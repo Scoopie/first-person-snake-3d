@@ -54,6 +54,7 @@ export class SnakeGame {
   private leaderboardEntries: LeaderboardEntry[] = [];
   private leaderboardLoaded = false;
   private submittedGameOverScore: number | null = null;
+  private skippedGameOverScore: number | null = null;
   private submittingLeaderboardScore = false;
   private turnAnimationStartedAt = 0;
   private turnAnimationUntil = 0;
@@ -72,6 +73,7 @@ export class SnakeGame {
     this.dom.leaderboardSubmit.addEventListener("click", () => {
       void this.submitScore();
     });
+    this.dom.leaderboardSkip.addEventListener("click", () => this.skipScoreEntry());
   }
 
   start() {
@@ -341,10 +343,57 @@ export class SnakeGame {
     );
   }
 
+  private leaderboardRankForScore(score: number) {
+    const zeroBasedRank = this.leaderboardEntries.findIndex((entry) => score > entry.score);
+    return zeroBasedRank === -1 ? Math.min(this.leaderboardEntries.length + 1, 5) : zeroBasedRank + 1;
+  }
+
+  private formatRank(rank: number) {
+    if (rank === 1) return "1st";
+    if (rank === 2) return "2nd";
+    if (rank === 3) return "3rd";
+    return `${rank}th`;
+  }
+
   private updateLeaderboardSubmitVisibility() {
-    const alreadySubmitted = this.submittedGameOverScore === this.score;
-    const shouldShow = this.dead && this.gameOverOverlayShown && !alreadySubmitted && this.scoreQualifiesForLeaderboard(this.score);
+    const shouldShow = this.canOfferHighScoreEntry();
+    this.dom.highScoreEntryPanel.classList.toggle("hidden", !shouldShow);
     this.dom.leaderboardSubmitRow.classList.toggle("hidden", !shouldShow);
+  }
+
+  private canOfferHighScoreEntry() {
+    const alreadyHandled = this.submittedGameOverScore === this.score || this.skippedGameOverScore === this.score;
+    return this.dead && this.gameOverOverlayShown && !alreadyHandled && this.scoreQualifiesForLeaderboard(this.score);
+  }
+
+  private showHighScoreEntry() {
+    const rank = this.leaderboardRankForScore(this.score);
+    this.dom.messageTitle.textContent = `You placed ${this.formatRank(rank)}`;
+    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>.`;
+    this.dom.leaderboardRank.textContent = this.formatRank(rank);
+    this.dom.leaderboardPanel.classList.add("hidden");
+    this.dom.startBtn.classList.add("hidden");
+    this.dom.leaderboardSubmit.disabled = false;
+    this.setLeaderboardStatus("");
+    this.updateLeaderboardSubmitVisibility();
+    this.dom.leaderboardName.focus();
+  }
+
+  private showGameOverSummary(statusMessage = "") {
+    this.dom.messageTitle.textContent = "Game over";
+    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>.`;
+    this.dom.startBtn.textContent = "Play again";
+    this.dom.startBtn.disabled = false;
+    this.dom.startBtn.classList.remove("hidden");
+    this.dom.highScoreEntryPanel.classList.add("hidden");
+    this.dom.leaderboardSubmitRow.classList.add("hidden");
+    this.dom.leaderboardPanel.classList.remove("hidden");
+    this.setLeaderboardStatus(statusMessage);
+  }
+
+  private skipScoreEntry() {
+    this.skippedGameOverScore = this.score;
+    this.showGameOverSummary();
   }
 
   private sanitizeLeaderboardName(name: string) {
@@ -358,7 +407,7 @@ export class SnakeGame {
 
     if (this.submittedGameOverScore === this.score) {
       this.setLeaderboardStatus("Score already submitted.");
-      this.updateLeaderboardSubmitVisibility();
+      this.showGameOverSummary("Score already submitted.");
       return;
     }
 
@@ -368,13 +417,12 @@ export class SnakeGame {
     try {
       const loaded = await this.refreshLeaderboard();
       if (!loaded) {
-        this.updateLeaderboardSubmitVisibility();
+        this.showGameOverSummary("Unable to load web scores.");
         return;
       }
 
       if (!this.scoreQualifiesForLeaderboard(this.score)) {
-        this.setLeaderboardStatus("Score did not make the top 5.");
-        this.updateLeaderboardSubmitVisibility();
+        this.showGameOverSummary("Score did not make the top 5.");
         return;
       }
 
@@ -390,10 +438,8 @@ export class SnakeGame {
       window.localStorage.setItem(LEADERBOARD_NAME_STORAGE_KEY, name);
       this.dom.leaderboardName.value = name;
       this.submittedGameOverScore = this.score;
-      this.updateLeaderboardSubmitVisibility();
       await this.refreshLeaderboard();
-      this.updateLeaderboardSubmitVisibility();
-      this.setLeaderboardStatus("Score submitted.");
+      this.showGameOverSummary("Score submitted.");
     } catch {
       this.setLeaderboardStatus("Unable to submit score.");
     } finally {
@@ -713,13 +759,17 @@ export class SnakeGame {
 
     this.gameOverOverlayShown = true;
     this.dom.message.classList.remove("hidden");
-    this.dom.startBtn.disabled = false;
-    this.dom.messageTitle.textContent = "Game over";
-    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>.`;
-    this.dom.startBtn.textContent = "Play again";
-    this.dom.leaderboardPanel.classList.remove("hidden");
+    this.showGameOverSummary();
     this.dom.leaderboardSubmitRow.classList.add("hidden");
-    void this.refreshLeaderboard().then(() => this.updateLeaderboardSubmitVisibility());
+    void this.refreshLeaderboard().then((loaded) => {
+      if (!loaded) {
+        this.showGameOverSummary("Unable to load web scores.");
+      } else if (this.canOfferHighScoreEntry()) {
+        this.showHighScoreEntry();
+      } else {
+        this.showGameOverSummary();
+      }
+    });
   }
 
   private gameOver() {
@@ -765,6 +815,7 @@ export class SnakeGame {
     this.deathAnimationUntil = 0;
     this.gameOverOverlayShown = false;
     this.submittedGameOverScore = null;
+    this.skippedGameOverScore = null;
     this.submittingLeaderboardScore = false;
     this.turnAnimationStartedAt = 0;
     this.turnAnimationUntil = 0;
@@ -780,6 +831,8 @@ export class SnakeGame {
     this.dom.messageCopy.textContent = "";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
     this.dom.startBtn.disabled = false;
+    this.dom.startBtn.classList.remove("hidden");
+    this.dom.highScoreEntryPanel.classList.add("hidden");
     this.dom.leaderboardPanel.classList.toggle("hidden", startNow);
     this.dom.leaderboardSubmitRow.classList.add("hidden");
     this.dom.leaderboardSubmit.disabled = false;

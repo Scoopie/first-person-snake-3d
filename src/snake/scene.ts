@@ -226,15 +226,16 @@ export function createScene(canvas: HTMLCanvasElement): SceneBundle {
 
   const camera = new THREE.PerspectiveCamera(76, window.innerWidth / window.innerHeight, 0.1, 160);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const pixelRatio = Math.min(window.devicePixelRatio, 1.35);
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(pixelRatio);
   renderer.shadowMap.enabled = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.08;
 
   const composer = new EffectComposer(renderer);
   composer.setSize(window.innerWidth, window.innerHeight);
-  composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  composer.setPixelRatio(pixelRatio);
   composer.addPass(new RenderPass(scene, camera));
 
   const bloomPass = new UnrealBloomPass(
@@ -251,7 +252,7 @@ export function createScene(canvas: HTMLCanvasElement): SceneBundle {
   const sun = new THREE.DirectionalLight(0xfff1d8, 1.55);
   sun.position.set(12, 24, 10);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);
   scene.add(sun);
 
   const cyanWash = new THREE.PointLight(0x00d5ff, 2.6, 42);

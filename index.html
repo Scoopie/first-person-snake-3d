@@ -32,17 +32,22 @@
       </div>
       <h1>Snake 3D</h1>
       <p></p>
+      <div class="high-score-entry hidden" id="highScoreEntryPanel">
+        <div class="celebration-mark" id="leaderboardRank">#1</div>
+        <h2>New high score</h2>
+        <div class="leaderboard-submit hidden" id="leaderboardSubmitRow">
+          <input id="leaderboardName" maxlength="16" autocomplete="nickname" placeholder="Name" aria-label="Leaderboard name" />
+          <button id="leaderboardSubmit" type="button">Submit</button>
+        </div>
+        <button class="skip-score-button" id="leaderboardSkip" type="button">Skip</button>
+      </div>
       <div class="leaderboard-panel" id="leaderboardPanel">
         <div class="leaderboard-header">Top Scores</div>
         <ol id="leaderboardList" class="leaderboard-list">
           <li>Loading scores...</li>
         </ol>
-        <div class="leaderboard-submit hidden" id="leaderboardSubmitRow">
-          <input id="leaderboardName" maxlength="16" autocomplete="nickname" placeholder="Name" aria-label="Leaderboard name" />
-          <button id="leaderboardSubmit" type="button">Submit</button>
-        </div>
-        <div class="leaderboard-status" id="leaderboardStatus"></div>
       </div>
+      <div class="leaderboard-status" id="leaderboardStatus"></div>
       <button id="startBtn">Start game</button>
     </div>
 
