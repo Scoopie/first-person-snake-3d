@@ -22,7 +22,7 @@ export async function fetchLeaderboard() {
   const params = new URLSearchParams({
     select: "name,score,created_at",
     order: "score.desc,created_at.asc",
-    limit: "10"
+    limit: "5"
   });
   const response = await fetch(`${SCORES_ENDPOINT}?${params}`, {
     headers: headers()

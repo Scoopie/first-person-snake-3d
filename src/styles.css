@@ -240,6 +240,9 @@ body {
 }
 
 .leaderboard-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   padding-left: 4px;
 }
 
@@ -249,22 +252,22 @@ body {
 }
 
 .leaderboard-list span {
-  display: inline-block;
-  max-width: 11ch;
+  display: block;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: bottom;
   white-space: nowrap;
 }
 
 .leaderboard-list strong {
-  float: right;
   color: rgba(255, 255, 255, 0.96);
+  min-width: 3ch;
+  text-align: right;
 }
 
 .leaderboard-submit {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(12rem, 1fr) auto;
   gap: 8px;
   margin-top: 10px;
 }

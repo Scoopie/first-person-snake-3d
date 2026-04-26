@@ -6,8 +6,8 @@ import { fetchLeaderboard, submitLeaderboardScore, type LeaderboardEntry } from 
 import { createScene } from "./scene";
 import type { Cell, Direction, FoodType, GameDom } from "./types";
 
-const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
 const LEADERBOARD_NAME_STORAGE_KEY = "first-person-snake-3d:leaderboard-name";
+const LEGACY_HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
 const DEFAULT_HEAD_COLOR = 0xc8fbff;
 const DEFAULT_HEAD_EMISSIVE = 0x2bc8ff;
 
@@ -29,7 +29,6 @@ export class SnakeGame {
   private foodPos: Cell | null = null;
   private activeFoodType: FoodType = FOOD_TYPES.bonus;
   private score = 0;
-  private highScore = 0;
   private running = false;
   private dead = false;
   private moveTimer = 0;
@@ -59,8 +58,7 @@ export class SnakeGame {
   constructor(canvas: HTMLCanvasElement) {
     this.dom = getGameDom(canvas);
     this.sceneBundle = createScene(canvas);
-    this.highScore = this.loadHighScore();
-    this.dom.highScoreEl.textContent = String(this.highScore);
+    this.clearLegacyHighScore();
     this.input = new InputController(this.dom, {
       onDebugFoodType: (index) => this.setDebugFoodType(index),
       onStart: () => this.requestStart()
@@ -140,22 +138,10 @@ export class SnakeGame {
     return FOOD_TYPES.bonus;
   }
 
-  private loadHighScore() {
-    const storedScore = Number.parseInt(window.localStorage.getItem(HIGH_SCORE_STORAGE_KEY) ?? "0", 10);
-    return Number.isFinite(storedScore) ? Math.max(0, storedScore) : 0;
-  }
-
   private setScore(score: number) {
     this.score = score;
     this.dom.scoreEl.textContent = String(this.score);
 
-    if (this.score <= this.highScore) {
-      return;
-    }
-
-    this.highScore = this.score;
-    this.dom.highScoreEl.textContent = String(this.highScore);
-    window.localStorage.setItem(HIGH_SCORE_STORAGE_KEY, String(this.highScore));
   }
 
   private applyFoodVisuals() {
@@ -265,6 +251,11 @@ export class SnakeGame {
 
   private loadLeaderboardName() {
     return window.localStorage.getItem(LEADERBOARD_NAME_STORAGE_KEY) ?? "";
+  }
+
+  private clearLegacyHighScore() {
+    window.localStorage.removeItem(LEGACY_HIGH_SCORE_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_HIGH_SCORE_STORAGE_KEY);
   }
 
   private setLeaderboardStatus(message: string) {
@@ -654,7 +645,7 @@ export class SnakeGame {
     this.dom.message.classList.remove("hidden");
     this.dom.startBtn.disabled = false;
     this.dom.messageTitle.textContent = "Game over";
-    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. High score: <strong>${this.highScore}</strong>.`;
+    this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>.`;
     this.dom.startBtn.textContent = "Play again";
     this.dom.leaderboardPanel.classList.remove("hidden");
     this.dom.leaderboardSubmitRow.classList.toggle("hidden", this.score <= 0);
