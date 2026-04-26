@@ -10,13 +10,141 @@ export interface SceneBundle {
   composer: EffectComposer;
   snakeGroup: THREE.Group;
   food: THREE.Mesh;
+  foodGeometries: Record<string, THREE.BufferGeometry>;
   foodMat: THREE.MeshStandardMaterial;
   foodLight: THREE.PointLight;
-  headGlow: THREE.Mesh;
-  headGlowMat: THREE.MeshBasicMaterial;
-  headGlowLight: THREE.PointLight;
   snakeMat: THREE.MeshStandardMaterial;
   headMat: THREE.MeshStandardMaterial;
+}
+
+function createPlusGeometry() {
+  const arm = 0.52;
+  const length = 1.62;
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-arm, -length);
+  shape.lineTo(arm, -length);
+  shape.lineTo(arm, -arm);
+  shape.lineTo(length, -arm);
+  shape.lineTo(length, arm);
+  shape.lineTo(arm, arm);
+  shape.lineTo(arm, length);
+  shape.lineTo(-arm, length);
+  shape.lineTo(-arm, arm);
+  shape.lineTo(-length, arm);
+  shape.lineTo(-length, -arm);
+  shape.lineTo(-arm, -arm);
+  shape.lineTo(-arm, -length);
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    bevelEnabled: true,
+    bevelSegments: 3,
+    bevelSize: 0.12,
+    bevelThickness: 0.12,
+    curveSegments: 8,
+    depth: 0.56
+  });
+  geometry.center();
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createGhostGeometry() {
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-0.95, -0.88);
+  shape.lineTo(-0.95, 0.2);
+  shape.absarc(0, 0.2, 0.95, Math.PI, 0, true);
+  shape.lineTo(0.95, -0.88);
+  shape.quadraticCurveTo(0.66, -0.62, 0.42, -0.88);
+  shape.quadraticCurveTo(0.18, -1.14, -0.08, -0.88);
+  shape.quadraticCurveTo(-0.34, -0.62, -0.58, -0.88);
+  shape.quadraticCurveTo(-0.78, -1.08, -0.95, -0.88);
+
+  const leftEye = new THREE.Path();
+  leftEye.absellipse(-0.33, 0.24, 0.13, 0.18, 0, Math.PI * 2, true);
+  const rightEye = new THREE.Path();
+  rightEye.absellipse(0.33, 0.24, 0.13, 0.18, 0, Math.PI * 2, true);
+  shape.holes.push(leftEye, rightEye);
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    bevelEnabled: true,
+    bevelSegments: 3,
+    bevelSize: 0.1,
+    bevelThickness: 0.1,
+    curveSegments: 18,
+    depth: 0.62
+  });
+  geometry.center();
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function extrudeCenteredShape(shape: THREE.Shape, depth = 0.62) {
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    bevelEnabled: true,
+    bevelSegments: 3,
+    bevelSize: 0.1,
+    bevelThickness: 0.1,
+    curveSegments: 14,
+    depth
+  });
+  geometry.center();
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createHourglassGeometry() {
+  const points = [
+    new THREE.Vector2(0.78, -1.1),
+    new THREE.Vector2(0.9, -0.98),
+    new THREE.Vector2(0.62, -0.58),
+    new THREE.Vector2(0.18, -0.08),
+    new THREE.Vector2(0.18, 0.08),
+    new THREE.Vector2(0.62, 0.58),
+    new THREE.Vector2(0.9, 0.98),
+    new THREE.Vector2(0.78, 1.1)
+  ];
+  const geometry = new THREE.LatheGeometry(points, 36);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createLightningGeometry() {
+  const shape = new THREE.Shape();
+
+  shape.moveTo(0.18, 1.3);
+  shape.lineTo(-0.88, 0.08);
+  shape.lineTo(-0.22, 0.08);
+  shape.lineTo(-0.52, -1.3);
+  shape.lineTo(0.94, -0.28);
+  shape.lineTo(0.18, -0.28);
+  shape.lineTo(0.72, 1.3);
+  shape.lineTo(0.18, 1.3);
+
+  return extrudeCenteredShape(shape, 0.62);
+}
+
+function createDoubleCapsuleGeometry() {
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-1.22, 0.62);
+  shape.lineTo(0.16, 0.62);
+  shape.quadraticCurveTo(0.74, 0.62, 0.74, 0.04);
+  shape.quadraticCurveTo(0.74, -0.54, 0.16, -0.54);
+  shape.lineTo(-1.22, -0.54);
+  shape.quadraticCurveTo(-1.8, -0.54, -1.8, 0.04);
+  shape.quadraticCurveTo(-1.8, 0.62, -1.22, 0.62);
+
+  shape.moveTo(-0.16, 0.54);
+  shape.lineTo(1.22, 0.54);
+  shape.quadraticCurveTo(1.8, 0.54, 1.8, -0.04);
+  shape.quadraticCurveTo(1.8, -0.62, 1.22, -0.62);
+  shape.lineTo(-0.16, -0.62);
+  shape.quadraticCurveTo(-0.74, -0.62, -0.74, -0.04);
+  shape.quadraticCurveTo(-0.74, 0.54, -0.16, 0.54);
+
+  return extrudeCenteredShape(shape, 0.6);
 }
 
 function makeGridTexture(renderer: THREE.WebGLRenderer) {
@@ -211,27 +339,21 @@ export function createScene(canvas: HTMLCanvasElement): SceneBundle {
     metalness: 0.18
   });
 
-  const food = new THREE.Mesh(new THREE.BoxGeometry(1.65, 1.65, 1.65), foodMat);
+  const foodGeometries = {
+    default: new THREE.BoxGeometry(1.65, 1.65, 1.65),
+    bonus: createPlusGeometry(),
+    slow: createHourglassGeometry(),
+    fast: createLightningGeometry(),
+    double: createDoubleCapsuleGeometry(),
+    ghost: createGhostGeometry()
+  };
+
+  const food = new THREE.Mesh(foodGeometries.default, foodMat);
   food.castShadow = true;
   scene.add(food);
 
   const foodLight = new THREE.PointLight(0xffbb66, 4.6, 18);
   scene.add(foodLight);
-
-  const headGlowMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  const headGlow = new THREE.Mesh(new THREE.SphereGeometry(1.22, 32, 18), headGlowMat);
-  headGlow.visible = false;
-  headGlow.renderOrder = 8;
-  scene.add(headGlow);
-
-  const headGlowLight = new THREE.PointLight(0xffffff, 0, 8);
-  scene.add(headGlowLight);
 
   return {
     camera,
@@ -239,11 +361,9 @@ export function createScene(canvas: HTMLCanvasElement): SceneBundle {
     composer,
     snakeGroup,
     food,
+    foodGeometries,
     foodMat,
     foodLight,
-    headGlow,
-    headGlowMat,
-    headGlowLight,
     snakeMat,
     headMat
   };

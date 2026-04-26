@@ -1,11 +1,13 @@
 import * as THREE from "three";
-import { CELL_SIZE, FLOOR_Y, FOOD_TYPE_LIST, FOOD_TYPES, HALF_GRID } from "./config";
+import { CELL_SIZE, FLOOR_Y, FOOD_TYPE_LIST, FOOD_TYPES, FOOD_Y, HALF_GRID } from "./config";
 import { getGameDom } from "./dom";
 import { InputController } from "./input";
 import { createScene } from "./scene";
 import type { Cell, Direction, FoodType, GameDom } from "./types";
 
 const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
+const DEFAULT_HEAD_COLOR = 0xc8fbff;
+const DEFAULT_HEAD_EMISSIVE = 0x2bc8ff;
 
 interface DeathDebris {
   velocity: THREE.Vector3;
@@ -35,8 +37,10 @@ export class SnakeGame {
   private ghostStepsRemaining = 0;
   private doubleLengthStepsRemaining = 0;
   private doubleLengthSegments = 0;
-  private headGlowUntil = 0;
-  private headGlowFlashStartsAt = 0;
+  private headEffectUntil = 0;
+  private headEffectFlashStartsAt = 0;
+  private headEffectColor = DEFAULT_HEAD_COLOR;
+  private headEffectEmissive = DEFAULT_HEAD_EMISSIVE;
   private pickupLabelUntil = 0;
   private pickupLabelWord = "";
   private pickupLabelColor = 0xffffff;
@@ -149,8 +153,9 @@ export class SnakeGame {
   }
 
   private applyFoodVisuals() {
-    const { foodLight, foodMat } = this.sceneBundle;
+    const { food, foodGeometries, foodLight, foodMat } = this.sceneBundle;
 
+    food.geometry = foodGeometries[this.activeFoodType.id] ?? foodGeometries.default;
     foodMat.color.setHex(this.activeFoodType.color);
     foodMat.emissive.setHex(this.activeFoodType.emissive);
     foodLight.color.setHex(this.activeFoodType.emissive);
@@ -175,7 +180,8 @@ export class SnakeGame {
 
     this.foodPos = this.randomFreeCell();
     food.position.copy(this.gridToWorld(this.foodPos));
-    food.rotation.set(Math.random(), Math.random(), Math.random());
+    food.position.y = FOOD_Y;
+    food.rotation.set(0, Math.random() * Math.PI * 2, 0);
     foodLight.position.copy(food.position).add(new THREE.Vector3(0, 2.5, 0));
   }
 
@@ -229,7 +235,6 @@ export class SnakeGame {
   }
 
   private updateSnakeMeshes(alpha = 1) {
-    const { headGlow, headGlowLight, headGlowMat } = this.sceneBundle;
     const now = performance.now();
     const turning = now < this.turnAnimationUntil;
     const turnProgress = turning
@@ -249,18 +254,7 @@ export class SnakeGame {
         this.meshes[index].rotation.set(0, 0, lean);
       }
     }
-
-    const headPosition = this.meshes[0].position;
-    headGlow.position.copy(headPosition);
-    const glowRemaining = this.headGlowUntil - now;
-    const glowActive = glowRemaining > 0;
-    const shouldFlash = glowActive && now >= this.headGlowFlashStartsAt;
-    const flash = shouldFlash ? 0.5 + Math.sin(now * 0.026) * 0.5 : 0;
-    headGlow.visible = glowActive;
-    headGlow.scale.setScalar(1.08 + flash * 0.28);
-    headGlowMat.opacity = glowActive ? 0.28 + flash * 0.32 : 0;
-    headGlowLight.position.copy(headPosition).add(new THREE.Vector3(0, 1.4, 0));
-    headGlowLight.intensity = glowActive ? 1.25 + flash * 2.75 : 0;
+    this.updateHeadEffect(now);
   }
 
   private updateGhostCollisionVisuals(now: number) {
@@ -321,8 +315,38 @@ export class SnakeGame {
     this.turnAnimationUntil = now + Math.min(300, Math.max(170, this.stepTime * 850));
   }
 
+  private resetHeadMaterial() {
+    const { headMat } = this.sceneBundle;
+    headMat.color.setHex(DEFAULT_HEAD_COLOR);
+    headMat.emissive.setHex(DEFAULT_HEAD_EMISSIVE);
+    headMat.emissiveIntensity = 0.92;
+  }
+
+  private updateHeadEffect(now: number) {
+    if (this.headEffectUntil <= 0) {
+      return;
+    }
+
+    if (now > this.headEffectUntil) {
+      this.headEffectUntil = 0;
+      this.headEffectFlashStartsAt = 0;
+      this.resetHeadMaterial();
+      return;
+    }
+
+    if (now < this.headEffectFlashStartsAt) {
+      return;
+    }
+
+    const { headMat } = this.sceneBundle;
+    const flash = 0.5 + Math.sin(now * 0.026) * 0.5;
+    headMat.color.setHex(flash > 0.5 ? this.headEffectColor : DEFAULT_HEAD_COLOR);
+    headMat.emissive.setHex(flash > 0.5 ? this.headEffectEmissive : DEFAULT_HEAD_EMISSIVE);
+    headMat.emissiveIntensity = 0.92 + flash * 0.82;
+  }
+
   private activatePickupVisual(foodType: FoodType, durationMs = 3000) {
-    const { headGlowLight, headGlowMat } = this.sceneBundle;
+    const { headMat } = this.sceneBundle;
     const now = performance.now();
 
     if (foodType.word) {
@@ -331,11 +355,14 @@ export class SnakeGame {
     }
     this.pickupLabelColor = foodType.color;
     this.pickupLabelEmissive = foodType.emissive;
-    this.headGlowUntil = now + durationMs;
-    this.headGlowFlashStartsAt = this.headGlowUntil - 2000;
+    this.headEffectUntil = now + durationMs;
+    this.headEffectFlashStartsAt = this.headEffectUntil - 2000;
+    this.headEffectColor = foodType.color;
+    this.headEffectEmissive = foodType.emissive;
 
-    headGlowMat.color.setHex(foodType.emissive);
-    headGlowLight.color.setHex(foodType.emissive);
+    headMat.color.setHex(foodType.color);
+    headMat.emissive.setHex(foodType.emissive);
+    headMat.emissiveIntensity = 1.35;
   }
 
   private removeTemporaryDoubleLength() {
@@ -569,7 +596,7 @@ export class SnakeGame {
   }
 
   private reset(startNow = false) {
-    const { camera, headGlow, headGlowLight } = this.sceneBundle;
+    const { camera } = this.sceneBundle;
 
     this.snake = [
       { x: 0, z: 0 },
@@ -588,8 +615,10 @@ export class SnakeGame {
     this.ghostStepsRemaining = 0;
     this.doubleLengthStepsRemaining = 0;
     this.doubleLengthSegments = 0;
-    this.headGlowUntil = 0;
-    this.headGlowFlashStartsAt = 0;
+    this.headEffectUntil = 0;
+    this.headEffectFlashStartsAt = 0;
+    this.headEffectColor = DEFAULT_HEAD_COLOR;
+    this.headEffectEmissive = DEFAULT_HEAD_EMISSIVE;
     this.pickupLabelUntil = 0;
     this.pickupLabelWord = "";
     this.pickupLabelColor = 0xffffff;
@@ -605,8 +634,7 @@ export class SnakeGame {
     this.running = startNow;
     this.lastTime = performance.now();
 
-    headGlow.visible = false;
-    headGlowLight.intensity = 0;
+    this.resetHeadMaterial();
     this.input.clear();
     this.dom.messageTitle.textContent = "Snake 3D";
     this.dom.messageCopy.textContent = "";
@@ -645,9 +673,8 @@ export class SnakeGame {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
-    food.rotation.x += dt * 1.7;
     food.rotation.y += dt * 2.3;
-    food.position.y = FLOOR_Y + Math.sin(now * 0.005) * 0.18;
+    food.position.y = FOOD_Y + Math.sin(now * 0.005) * 0.18;
     foodLight.position.copy(food.position).add(new THREE.Vector3(0, 2.5, 0));
 
     if (this.running && !this.dead) {
