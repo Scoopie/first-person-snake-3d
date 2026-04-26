@@ -82,6 +82,46 @@ body {
   font-size: 34px;
 }
 
+.landscape-hint {
+  display: none;
+  justify-content: center;
+  margin: -4px 0 10px;
+  opacity: 0.82;
+}
+
+.phone-icon {
+  position: relative;
+  width: 34px;
+  height: 22px;
+  border: 2px solid rgba(184, 247, 255, 0.9);
+  border-radius: 7px;
+  box-shadow: 0 0 18px rgba(142, 251, 255, 0.36);
+}
+
+.phone-icon::before {
+  position: absolute;
+  content: "";
+  left: 4px;
+  top: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(246, 223, 183, 0.9);
+  transform: translateY(-50%);
+}
+
+.phone-icon::after {
+  position: absolute;
+  content: "";
+  right: -12px;
+  top: -6px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(246, 223, 183, 0.95);
+  border-top: 2px solid rgba(246, 223, 183, 0.95);
+  transform: rotate(45deg);
+}
+
 #message p {
   margin: 8px 0;
   color: rgba(255, 255, 255, 0.78);
@@ -204,6 +244,12 @@ button {
 
   .legend-item span:last-child {
     grid-column: 2;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .landscape-hint {
+    display: flex;
   }
 }
 
