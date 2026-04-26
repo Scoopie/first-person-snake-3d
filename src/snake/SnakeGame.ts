@@ -26,6 +26,7 @@ export class SnakeGame {
   private dir: Direction = { x: 0, z: -1 };
   private nextDir: Direction = { x: 0, z: -1 };
   private visualForward = new THREE.Vector3(0, 0, -1);
+  private cameraLookTarget = new THREE.Vector3(0, 0.9, 0);
   private foodPos: Cell | null = null;
   private activeFoodType: FoodType = FOOD_TYPES.bonus;
   private score = 0;
@@ -251,6 +252,21 @@ export class SnakeGame {
       }
     }
     this.updateHeadEffect(now);
+  }
+
+  private visualSnakePosition(index: number) {
+    return this.meshes[index]?.position.clone() ?? this.gridToWorld(this.snake[index]);
+  }
+
+  private visualSnakeCenter() {
+    const count = Math.max(1, this.snake.length);
+    const center = new THREE.Vector3();
+
+    for (let index = 0; index < count; index++) {
+      center.add(this.visualSnakePosition(index));
+    }
+
+    return center.multiplyScalar(1 / count);
   }
 
   private loadLeaderboardName() {
@@ -590,9 +606,8 @@ export class SnakeGame {
   }
 
   private updateCamera(dt: number) {
-    const head = this.snake[0];
     const cameraSegmentIndex = Math.min(5, this.snake.length - 1);
-    const headWorld = this.gridToWorld(head);
+    const headWorld = this.visualSnakePosition(0);
     const targetForward = this.directionToVector(this.dir);
     this.visualForward.lerp(targetForward, 1 - Math.pow(0.0008, dt)).normalize();
     const forward = this.visualForward;
@@ -606,10 +621,7 @@ export class SnakeGame {
 
     camera.position.lerp(desired, 1 - Math.pow(0.004, dt));
 
-    const bodyCenter = this.snake
-      .reduce<THREE.Vector3>((sum, cell) => sum.add(this.gridToWorld(cell)), new THREE.Vector3())
-      .multiplyScalar(1 / this.snake.length)
-      .add(new THREE.Vector3(0, 0.9, 0));
+    const bodyCenter = this.visualSnakeCenter().add(new THREE.Vector3(0, 0.9, 0));
 
     const bodyFocus = THREE.MathUtils.clamp((this.snake.length - 6) / 18, 0, 0.62);
     const targetFov = THREE.MathUtils.clamp(76 + Math.max(0, this.snake.length - 6) * 1.45, 76, 110);
@@ -625,7 +637,8 @@ export class SnakeGame {
       .add(new THREE.Vector3(0, 0.9, 0))
       .lerp(bodyCenter, bodyFocus);
 
-    camera.lookAt(target);
+    this.cameraLookTarget.lerp(target, 1 - Math.pow(0.002, dt));
+    camera.lookAt(this.cameraLookTarget);
   }
 
   private startDeathAnimation() {
@@ -722,6 +735,7 @@ export class SnakeGame {
     this.dir = { x: 0, z: -1 };
     this.nextDir = { ...this.dir };
     this.visualForward.copy(this.directionToVector(this.dir));
+    this.cameraLookTarget.set(0, 0.9, -CELL_SIZE);
     this.setScore(0);
     this.moveTimer = 0;
     this.stepTime = 0.28;
@@ -765,6 +779,7 @@ export class SnakeGame {
     }
 
     this.updateSnakeMeshes(1);
+    this.cameraLookTarget.copy(this.visualSnakePosition(0).add(new THREE.Vector3(0, 0.9, -CELL_SIZE)));
     this.updateGhostCollisionVisuals(performance.now());
     this.placeFood();
     camera.fov = 76;
