@@ -467,14 +467,6 @@ export class SnakeGame {
     this.dom.floatingFoodInfo.style.display = "block";
     this.dom.floatingFoodInfo.style.borderColor = `#${this.pickupLabelColor.toString(16).padStart(6, "0")}`;
     this.dom.floatingFoodInfo.style.boxShadow = `0 18px 60px rgba(0,0,0,.5), 0 0 34px #${this.pickupLabelEmissive.toString(16).padStart(6, "0")}`;
-
-    const headWorld = this.gridToWorld(this.snake[0]).add(new THREE.Vector3(0, 3.1, 0));
-    const screen = headWorld.clone().project(this.sceneBundle.camera);
-    const x = (screen.x * 0.5 + 0.5) * window.innerWidth;
-    const y = (-screen.y * 0.5 + 0.5) * window.innerHeight;
-
-    this.dom.floatingFoodInfo.style.left = `${THREE.MathUtils.clamp(x, 170, window.innerWidth - 170)}px`;
-    this.dom.floatingFoodInfo.style.top = `${THREE.MathUtils.clamp(y, 70, window.innerHeight - 110)}px`;
   }
 
   private updateCamera(dt: number) {
