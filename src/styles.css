@@ -12,12 +12,14 @@ body {
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 #game {
   display: block;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   touch-action: none;
 }
 
@@ -30,8 +32,8 @@ body {
 
 .panel {
   position: fixed;
-  top: 18px;
-  left: 18px;
+  top: max(18px, env(safe-area-inset-top));
+  left: max(18px, env(safe-area-inset-left));
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 16px;
@@ -291,8 +293,8 @@ button {
 
 #floatingFoodInfo {
   position: fixed;
-  right: 18px;
-  top: 18px;
+  right: max(18px, env(safe-area-inset-right));
+  top: max(18px, env(safe-area-inset-top));
   transform: none;
   min-width: 86px;
   padding: 8px 12px;

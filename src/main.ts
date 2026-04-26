@@ -9,3 +9,11 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 
 const game = new SnakeGame(canvas);
 game.start();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      // The game should stay playable even if install/offline support is unavailable.
+    });
+  });
+}

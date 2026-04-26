@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Snake 3D maskable icon">
+  <rect width="512" height="512" fill="#03050a"/>
+  <circle cx="256" cy="256" r="220" fill="#050912"/>
+  <path d="M104 352h304M104 256h304M104 160h304M160 104v304M256 104v304M352 104v304" stroke="#8efbff" stroke-width="6" opacity=".28"/>
+  <path d="M146 334h82v-82h82v-82h82" fill="none" stroke="#aec0ff" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M392 170h-82v82h-82v82h-82" fill="none" stroke="#263e86" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="344" y="122" width="96" height="96" rx="28" fill="#c8fbff"/>
+  <circle cx="144" cy="334" r="32" fill="#ff4d4d"/>
+</svg>
