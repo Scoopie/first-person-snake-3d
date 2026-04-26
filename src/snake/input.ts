@@ -43,13 +43,15 @@ export class InputController {
 
   private handleKeyDown = (event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
+    const target = event.target;
+    const typingInControl = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
     this.keys.add(key);
 
     if (/^[1-9]$/.test(key)) {
       this.callbacks.onDebugFoodType(Number.parseInt(key, 10) - 1);
     }
 
-    if (!this.dom.message.classList.contains("hidden") && (event.key === "Enter" || event.key === " ")) {
+    if (!typingInControl && !this.dom.message.classList.contains("hidden") && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault();
       this.callbacks.onStart();
     }
@@ -68,7 +70,7 @@ export class InputController {
   private handleOverlayClick = (event: MouseEvent) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("button")) return;
+    if (target.closest("button, input, .leaderboard-panel")) return;
     this.callbacks.onStart();
   };
 }

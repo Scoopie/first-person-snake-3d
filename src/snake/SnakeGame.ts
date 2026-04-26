@@ -2,10 +2,12 @@ import * as THREE from "three";
 import { CELL_SIZE, FLOOR_Y, FOOD_TYPE_LIST, FOOD_TYPES, FOOD_Y, HALF_GRID } from "./config";
 import { getGameDom } from "./dom";
 import { InputController } from "./input";
+import { fetchLeaderboard, submitLeaderboardScore, type LeaderboardEntry } from "./leaderboard";
 import { createScene } from "./scene";
 import type { Cell, Direction, FoodType, GameDom } from "./types";
 
 const HIGH_SCORE_STORAGE_KEY = "first-person-snake-3d:high-score";
+const LEADERBOARD_NAME_STORAGE_KEY = "first-person-snake-3d:leaderboard-name";
 const DEFAULT_HEAD_COLOR = 0xc8fbff;
 const DEFAULT_HEAD_EMISSIVE = 0x2bc8ff;
 
@@ -62,6 +64,10 @@ export class SnakeGame {
     this.input = new InputController(this.dom, {
       onDebugFoodType: (index) => this.setDebugFoodType(index),
       onStart: () => this.requestStart()
+    });
+    this.dom.leaderboardName.value = this.loadLeaderboardName();
+    this.dom.leaderboardSubmit.addEventListener("click", () => {
+      void this.submitScore();
     });
   }
 
@@ -255,6 +261,81 @@ export class SnakeGame {
       }
     }
     this.updateHeadEffect(now);
+  }
+
+  private loadLeaderboardName() {
+    return window.localStorage.getItem(LEADERBOARD_NAME_STORAGE_KEY) ?? "";
+  }
+
+  private setLeaderboardStatus(message: string) {
+    this.dom.leaderboardStatus.textContent = message;
+  }
+
+  private renderLeaderboard(entries: LeaderboardEntry[]) {
+    this.dom.leaderboardList.replaceChildren();
+
+    if (entries.length === 0) {
+      const item = document.createElement("li");
+      item.textContent = "No scores yet";
+      this.dom.leaderboardList.append(item);
+      return;
+    }
+
+    for (const entry of entries) {
+      const item = document.createElement("li");
+      const name = document.createElement("span");
+      const score = document.createElement("strong");
+
+      name.textContent = entry.name;
+      score.textContent = String(entry.score);
+      item.append(name, score);
+      this.dom.leaderboardList.append(item);
+    }
+  }
+
+  private async refreshLeaderboard() {
+    this.setLeaderboardStatus("Loading scores...");
+    try {
+      const entries = await fetchLeaderboard();
+      this.renderLeaderboard(entries);
+      this.setLeaderboardStatus("");
+    } catch {
+      this.renderLeaderboard([]);
+      this.setLeaderboardStatus("Unable to load web scores.");
+    }
+  }
+
+  private sanitizeLeaderboardName(name: string) {
+    return name.trim().replace(/\s+/g, " ").slice(0, 16);
+  }
+
+  private async submitScore() {
+    if (this.score <= 0) {
+      this.setLeaderboardStatus("Score a point first.");
+      return;
+    }
+
+    const name = this.sanitizeLeaderboardName(this.dom.leaderboardName.value);
+    if (!name) {
+      this.setLeaderboardStatus("Enter a name.");
+      this.dom.leaderboardName.focus();
+      return;
+    }
+
+    this.dom.leaderboardSubmit.disabled = true;
+    this.setLeaderboardStatus("Submitting...");
+
+    try {
+      await submitLeaderboardScore(name, this.score);
+      window.localStorage.setItem(LEADERBOARD_NAME_STORAGE_KEY, name);
+      this.dom.leaderboardName.value = name;
+      this.setLeaderboardStatus("Score submitted.");
+      await this.refreshLeaderboard();
+    } catch {
+      this.setLeaderboardStatus("Unable to submit score.");
+    } finally {
+      this.dom.leaderboardSubmit.disabled = false;
+    }
   }
 
   private updateGhostCollisionVisuals(now: number) {
@@ -575,6 +656,9 @@ export class SnakeGame {
     this.dom.messageTitle.textContent = "Game over";
     this.dom.messageCopy.innerHTML = `Score: <strong>${this.score}</strong>. High score: <strong>${this.highScore}</strong>.`;
     this.dom.startBtn.textContent = "Play again";
+    this.dom.leaderboardPanel.classList.remove("hidden");
+    this.dom.leaderboardSubmitRow.classList.toggle("hidden", this.score <= 0);
+    void this.refreshLeaderboard();
   }
 
   private gameOver() {
@@ -632,6 +716,11 @@ export class SnakeGame {
     this.dom.messageCopy.textContent = "";
     this.dom.startBtn.textContent = startNow ? "Play again" : "Start game";
     this.dom.startBtn.disabled = false;
+    this.dom.leaderboardPanel.classList.toggle("hidden", startNow);
+    this.dom.leaderboardSubmitRow.classList.add("hidden");
+    if (!startNow) {
+      void this.refreshLeaderboard();
+    }
 
     this.updateSnakeMeshes(1);
     this.updateGhostCollisionVisuals(performance.now());

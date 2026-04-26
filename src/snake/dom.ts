@@ -24,6 +24,12 @@ export function getGameDom(canvas: HTMLCanvasElement): GameDom {
     floatingFoodInfo: requireElement("#floatingFoodInfo", HTMLDivElement),
     floatingFoodName: requireElement("#floatingFoodName", HTMLDivElement),
     message,
+    leaderboardList: requireElement("#leaderboardList", HTMLOListElement),
+    leaderboardName: requireElement("#leaderboardName", HTMLInputElement),
+    leaderboardPanel: requireElement("#leaderboardPanel", HTMLDivElement),
+    leaderboardStatus: requireElement("#leaderboardStatus", HTMLDivElement),
+    leaderboardSubmitRow: requireElement("#leaderboardSubmitRow", HTMLDivElement),
+    leaderboardSubmit: requireElement("#leaderboardSubmit", HTMLButtonElement),
     startBtn: requireElement("#startBtn", HTMLButtonElement),
     messageTitle: requireElement("#message h1", HTMLHeadingElement),
     messageCopy

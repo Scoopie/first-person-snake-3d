@@ -212,6 +212,92 @@ body {
   clip-path: polygon(12% 100%, 12% 34%, 20% 14%, 38% 2%, 62% 2%, 80% 14%, 88% 34%, 88% 100%, 72% 82%, 58% 100%, 44% 82%, 30% 100%);
 }
 
+.leaderboard-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(142, 251, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(5, 8, 18, 0.46);
+  text-align: left;
+}
+
+.leaderboard-header {
+  margin-bottom: 8px;
+  color: rgba(184, 247, 255, 0.92);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.leaderboard-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 22px;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+}
+
+.leaderboard-list li {
+  padding-left: 4px;
+}
+
+.leaderboard-list li::marker {
+  color: rgba(184, 247, 255, 0.72);
+  font-weight: 800;
+}
+
+.leaderboard-list span {
+  display: inline-block;
+  max-width: 11ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.leaderboard-list strong {
+  float: right;
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.leaderboard-submit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.leaderboard-submit input {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 9px 12px;
+  background: rgba(0, 0, 0, 0.28);
+  color: white;
+  font: inherit;
+}
+
+.leaderboard-submit button {
+  margin: 0;
+  padding: 9px 13px;
+  font-size: 12px;
+}
+
+.leaderboard-submit button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.leaderboard-status {
+  min-height: 16px;
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 11px;
+  text-align: center;
+}
+
 button {
   margin-top: 18px;
   appearance: none;
