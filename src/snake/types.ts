@@ -20,6 +20,7 @@ export interface FoodType {
 
 export interface GameDom {
   canvas: HTMLCanvasElement;
+  scorePanel: HTMLElement;
   scoreEl: HTMLSpanElement;
   floatingFoodInfo: HTMLElement;
   floatingFoodName: HTMLElement;

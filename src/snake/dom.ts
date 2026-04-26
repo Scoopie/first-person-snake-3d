@@ -19,6 +19,7 @@ export function getGameDom(canvas: HTMLCanvasElement): GameDom {
 
   return {
     canvas,
+    scorePanel: requireElement("#scorePanel", HTMLDivElement),
     scoreEl: requireElement("#score", HTMLSpanElement),
     floatingFoodInfo: requireElement("#floatingFoodInfo", HTMLDivElement),
     floatingFoodName: requireElement("#floatingFoodName", HTMLDivElement),

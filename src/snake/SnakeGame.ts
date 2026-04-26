@@ -144,9 +144,18 @@ export class SnakeGame {
   }
 
   private setScore(score: number) {
+    const increased = score > this.score;
     this.score = score;
     this.dom.scoreEl.textContent = String(this.score);
 
+    if (increased) {
+      this.dom.scoreEl.classList.remove("score-pop");
+      this.dom.scorePanel.classList.remove("score-panel-pop");
+      void this.dom.scoreEl.offsetWidth;
+      void this.dom.scorePanel.offsetWidth;
+      this.dom.scoreEl.classList.add("score-pop");
+      this.dom.scorePanel.classList.add("score-panel-pop");
+    }
   }
 
   private applyFoodVisuals() {
