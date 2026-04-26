@@ -1,4 +1,4 @@
-const CACHE_NAME = "snake-3d-v1";
+const CACHE_NAME = "snake-3d-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -29,17 +29,34 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const isNavigation = request.mode === "navigate" || request.headers.get("accept")?.includes("text/html");
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached ?? caches.match("./index.html")))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
+      const network = fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
 
-      return fetch(request).then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        return response;
-      });
+      return cached ?? network;
     })
   );
 });
