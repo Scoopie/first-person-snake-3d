@@ -10,6 +10,8 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 const game = new SnakeGame(canvas);
 game.start();
 
+const SERVICE_WORKER_VERSION = "snake-3d-v3";
+
 function syncVisualViewportVars() {
   const viewport = window.visualViewport;
   const height = viewport?.height ?? window.innerHeight;
@@ -26,6 +28,7 @@ window.visualViewport?.addEventListener("scroll", syncVisualViewportVars);
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
   let reloadedForServiceWorkerUpdate = false;
+  let serviceWorkerRegistration: ServiceWorkerRegistration | null = null;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (reloadedForServiceWorkerUpdate) {
@@ -36,10 +39,27 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
     window.location.reload();
   });
 
+  function requestServiceWorkerUpdate() {
+    serviceWorkerRegistration?.update().catch(() => {
+      // Update checks are opportunistic; gameplay should never depend on them.
+    });
+  }
+
+  window.addEventListener("focus", requestServiceWorkerUpdate);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      requestServiceWorkerUpdate();
+    }
+  });
+
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("./sw.js", { updateViaCache: "none" })
-      .then((registration) => registration.update())
+      .register(`./sw.js?v=${SERVICE_WORKER_VERSION}`, { updateViaCache: "none" })
+      .then((registration) => {
+        serviceWorkerRegistration = registration;
+        registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+        return registration.update();
+      })
       .catch(() => {
         // The game should stay playable even if install/offline support is unavailable.
       });
